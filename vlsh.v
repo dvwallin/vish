@@ -8,7 +8,7 @@ import term
 const (
 	history_file = [os.home_dir(), '.vlsh_history'].join('/')
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
-	debug_mode	 = os.getenv('VLSHDEBUG')
+	debug_mode = os.getenv('VLSHDEBUG')
 )
 
 struct Cfg {
