@@ -54,7 +54,7 @@ fn main() {
 
 	for {
 		prompt := term.colorize(term.bold, '$os.getwd()').replace('$os.home_dir()', '~')
-		mut stdin := (os.input_opt('--\n$prompt\n☣ ') or {
+		mut stdin := (os.input_opt('$prompt\n☣ ') or {
 			exit(1)
 			panic('Exiting: $err')
 			''
@@ -187,7 +187,7 @@ fn main() {
 						println([path, 'is not executable'].join(' '))
 						return
 					}
-					mut child := new_process(path)
+					mut child := os.new_process(path)
 					child.set_args(args[0..])
 					child.run()
 					child.wait()
