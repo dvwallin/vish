@@ -181,6 +181,7 @@ fn main() {
 				println(stdin.join(' '))
 			}
 			else {
+				// assume it's a program being run
 				ok, path := cfg.find_exe(cmd)
 				if ok {
 					if !os.is_executable(path) {
@@ -188,6 +189,7 @@ fn main() {
 						return
 					}
 					mut child := os.new_process(path)
+					debug('args: ', args.join(' '))
 					child.set_args(args[0..])
 					child.run()
 					child.wait()
