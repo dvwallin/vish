@@ -17,6 +17,14 @@ struct Cfg {
 	aliases map[string]string
 }
 
+struct Ent {
+	mut:
+	fullpath string
+	name string
+	output string
+	len int
+}
+
 fn handler() {
 	println('')
 	exit(0)
@@ -113,8 +121,27 @@ fn main() {
 				rmd			Removes directory.')
 			}
 			'ls' {
+				x, _ := term.get_terminal_size()
+				size := x / 3
+				debug('column size: ${size}')
 				output := ls_cmd(args)?
-				println(output)
+				mut c := 0
+				for ent in output {
+					mut pad := 0
+					mut pad_string := ''
+					if pad < ent.len {
+						pad = size - ent.len
+					}
+					for i := 0; i < pad; i += 1 {
+						pad_string += ' '
+					}
+					print(ent.output + pad_string)
+					c += 1
+					if c == 3 {
+						print('\n')
+						c = 0
+					}
+				}
 			}
 			'mkdir' {
 				os.mkdir_all(args[0]) ?
@@ -201,24 +228,40 @@ fn (mut cfg Cfg) extract_paths(config []string) {
 	}
 }
 
-fn debug<T>(input T) {
+fn debug<T>(input ...T) {
 	if debug_mode == 'true' {
-		println(input)
+		print('debug::\t\t')
+		for i in input {
+			print(i)
+		}
+		print('\n')
 	}
 }
 
-fn ls_cmd(args []string) ?string {
+fn ls_cmd(args []string) ?[]Ent {
 	mut target := '.'
+	mut ents := []Ent{}
+	mut show_hidden := false
 	if args.len > 0 {
-		first_arg := args[0].replace('~', os.home_dir())
-		if os.exists(args[0]) {
-			target = first_arg.trim_right('/')
+		mut target_arg := args[0].replace('~', os.home_dir())
+		if args[0] == 'la' || args[0] == '-la' {
+			show_hidden = true
+		}
+		if args.len > 1 {
+			target_arg = args[1].replace('~', os.home_dir())
+		}
+		debug('target_arg: ', target_arg)
+		if os.exists(target_arg) {
+			target = target_arg.trim_right('/')
 		}
 	}
+	debug('target: ', target)
 	mut ls := os.ls([target, '/'].join('')) ?
-	mut output_array := []string{}
 	ls.sort()
 	for mut ent in ls {
+		if !show_hidden && ent.starts_with('.') {
+			continue
+		}
 		full_ent := os.real_path([target, ent].join('/'))
 		mut output := ['??', ent, 'unknown'].join('    ')
 		if os.is_dir(full_ent) {
@@ -233,7 +276,13 @@ fn ls_cmd(args []string) ?string {
 		} else if os.is_file(full_ent) {
 			output = term.colorize(term.bright_black, ent)
 		}
-		output_array << output
+		ent_obj := Ent{
+		 fullpath: full_ent,
+		 name: ent,
+		 output: output,
+		 len: ent.len
+	 }
+	 ents << ent_obj
 	}
-	return output_array.join('\t')
+	return ents 
 }
