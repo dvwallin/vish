@@ -4,12 +4,29 @@ import os
 import term
 
 #include <signal.h>
+#include <termios.h>
+#include <sys/ioctl.h>
 
 const (
 	history_file = [os.home_dir(), '.vlsh_history'].join('/')
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
 	debug_mode = os.getenv('VLSHDEBUG')
 )
+
+pub struct EventConfig {
+	user_data            voidptr
+	init_fn              fn(voidptr)
+	event_fn             fn(&Event, voidptr)
+	fail_fn              fn(string)
+
+	buffer_size          int = 256
+
+	capture_events       bool
+	use_alternate_buffer bool = true
+	skip_init_checks     bool
+	// All kill signals to set up exit listeners on
+	reset                []int = [1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 14, 15, 19]
+}
 
 struct Cfg {
 	mut:
@@ -25,21 +42,160 @@ struct Ent {
 	len int
 }
 
+struct App {
+mut:
+    evnt &Context = 0
+}
+
+struct ExtraContext {
+mut:
+	read_buf []byte
+}
+
+const (
+	ctx_ptr = &Context(0)
+)
+
+struct Context {
+	ExtraContext
+pub:
+	cfg 		  EventConfig
+mut:
+	print_buf  []byte
+	read_buf []byte
+}
+
+enum KeyCode {
+	null = 0
+	tab = 9
+	enter = 10
+	escape = 27
+	space = 32
+	backspace = 127
+	exclamation = 33
+	double_quote = 34
+	hashtag = 35
+	dollar = 36
+	percent = 37
+	ampersand = 38
+	single_quote = 39
+	left_paren = 40
+	right_paren = 41
+	asterisk = 42
+	plus = 43
+	comma = 44
+	minus = 45
+	period = 46
+	slash = 47
+	_0 = 48
+	_1 = 49
+	_2 = 50
+	_3 = 51
+	_4 = 52
+	_5 = 53
+	_6 = 54
+	_7 = 55
+	_8 = 56
+	_9 = 57
+	colon = 58
+	semicolon = 59
+	less_than = 60
+	equal = 61
+	greater_than = 62
+	question_mark = 63
+	at = 64
+	a = 97
+	b = 98
+	c = 99
+	d = 100
+	e = 101
+	f = 102
+	g = 103
+	h = 104
+	i = 105
+	j = 106
+	k = 107
+	l = 108
+	m = 109
+	n = 110
+	o = 111
+	p = 112
+	q = 113
+	r = 114
+	s = 115
+	t = 116
+	u = 117
+	v = 118
+	w = 119
+	x = 120
+	y = 121
+	z = 122
+	left_square_bracket = 91
+	backslash = 92
+	right_square_bracket = 93
+	caret = 94
+	underscore = 95
+	backtick = 96
+	left_curly_bracket = 123
+	vertical_bar = 124
+	right_curly_bracket = 125
+	tilde = 126
+	insert = 260
+	delete = 261
+	up = 262
+	down = 263
+	right = 264
+	left = 265
+	page_up = 266
+	page_down = 267
+	home = 268
+	end = 269
+	f1 = 290
+	f2 = 291
+	f3 = 292
+	f4 = 293
+	f5 = 294
+	f6 = 295
+	f7 = 296
+	f8 = 297
+	f9 = 298
+	f10 = 299
+	f11 = 300
+	f12 = 301
+	f13 = 302
+	f14 = 303
+	f15 = 304
+	f16 = 305
+	f17 = 306
+	f18 = 307
+	f19 = 308
+	f20 = 309
+	f21 = 310
+	f22 = 311
+	f23 = 312
+	f24 = 313
+}
+
+enum EventType {
+	unknown
+	key_down
+}
+
+struct Event {
+pub:
+	typ EventType
+
+	code      KeyCode
+	ascii     byte
+	utf8      string
+}
+
 fn handler() {
 	println('')
 	exit(0)
 }
 
-fn main() {
-	os.signal(2, handler)
-	os.signal(1, handler)
-	mut history_writer := os.open_append(history_file) ?
-
-	mut history := os.read_lines(history_file) ?
-	debug(history.join(''))
-
-
-	// reading in configuration file to handle paths and aliases
+fn read_cfg() ?Cfg {
 	mut cfg := Cfg{}
 	config_file_data := os.read_lines(config_file) ?
 
@@ -52,7 +208,26 @@ fn main() {
 
 	debug(cfg)
 
+	return cfg
+}
+
+fn main() {
+	os.signal(2, handler)
+	os.signal(1, handler)
+	mut history_writer := os.open_append(history_file) ?
+
+	mut history := os.read_lines(history_file) ?
+	debug(history.join(''))
+
+
+	// reading in configuration file to handle paths and aliases
+	mut cfg := read_cfg() ?
+
 	for {
+
+		mut app := &App{}
+		app.evnt.run() ?
+
 		prompt := term.colorize(term.bold, '$os.getwd()').replace('$os.home_dir()', '~')
 		mut stdin := (os.input_opt('$prompt\n☣ ') or {
 			exit(1)
@@ -76,6 +251,11 @@ fn main() {
 		}
 
 		match cmd {
+			'aliases' {
+				for alias_name, alias_cmd in cfg.aliases {
+					print('${term.bold(alias_name)} : ${term.italic(alias_cmd)}\n')
+				}
+			}
 			'cd' {
 				mut target := os.home_dir()
 				if args.len > 0 {
@@ -115,19 +295,21 @@ fn main() {
 				exit(0)
 			}
 			'help' {
-				println('cd			Change to provided directory.
-				chmod			Change file/dir access attributes and permissions.
-				clear			Clears the screen.
-				cp			Copy source file/dir to destination.
-				echo			Print entered message.
-				exit			Exit the shell.
-				help			Displays this message.
-				ls			List all files and subdirectories in current directory.
-				mkdir			Creates new directory.
-				ocp			Override existing destination for cp.
-				pwd			Displays the full path of current directory
-				rm			Removes file.
-				rmd			Removes directory.')
+				println('aliases			Shows a list of all declared aliases.
+cd			Change to provided directory.
+chmod			Change file/dir access attributes and permissions.
+clear			Clears the screen.
+cp			Copy source file/dir to destination.
+echo			Print entered message.
+exit			Exit the shell.
+help			Displays this message.
+ls			List all files and subdirectories in current directory.
+mkdir			Creates new directory.
+ocp			Override existing destination for cp.
+pwd			Displays the full path of current directory.
+rm			Removes file.
+rmd			Removes directory.
+source			Reloads the config file.')
 			}
 			'ls' {
 				x, _ := term.get_terminal_size()
@@ -176,31 +358,48 @@ fn main() {
 					println("rm: error: cannot remove'" + args[0] + "': Path does not exist")
 				}
 			}
+			'source' {
+				cfg = read_cfg() ?
+			}
 			'echo' {
 				stdin.delete(0)
 				println(stdin.join(' '))
 			}
 			else {
-				// assume it's a program being run
-				ok, path := cfg.find_exe(cmd)
-				if ok {
-					if !os.is_executable(path) {
-						println([path, 'is not executable'].join(' '))
-						return
-					}
-					mut child := os.new_process(path)
-					debug('args: ', args.join(' '))
-					child.set_args(args[0..])
-					child.run()
-					child.wait()
+				if alias_key_exists(cmd, cfg.aliases) {
+					os.execute(cfg.aliases[cmd])
 				} else {
-					println('command not found: ' + cmd)
+					// assume it's a program being run
+					ok, path := cfg.find_exe(cmd)
+					if ok {
+						if !os.is_executable(path) {
+							println([path, 'is not executable'].join(' '))
+							return
+						}
+						mut child := os.new_process(path)
+						debug('args: ', args.join(' '))
+						child.set_args(args[0..])
+						child.run()
+						child.wait()
+					} else {
+						println('command not found: ' + cmd)
+					}
 				}
 			}
 		}
 	}
 	history_writer.close()
 	exit(0)
+}
+
+fn alias_key_exists(key string, aliases map[string]string) bool {
+	for i, _ in aliases {
+		if i == key {
+			return true
+		}
+	}
+
+	return false
 }
 
 fn (cfg Cfg) find_exe(needle string) (bool, string) {
@@ -305,4 +504,197 @@ fn unique_history_cmd(history []string, full_cmd string) bool {
 		}
 	}
 	return true
+}
+
+fn (mut ctx Context) termios_loop() {
+	ctx.cfg.event_fn = ctx.event
+	if ctx.cfg.event_fn != voidptr(0) {
+		unsafe {
+			len := C.read(C.STDIN_FILENO, byteptr(ctx.read_buf.data) + ctx.read_buf.len,
+				ctx.read_buf.cap - ctx.read_buf.len)
+			ctx.resize_arr(ctx.read_buf.len + len)
+		}
+		if ctx.read_buf.len > 0 {
+			ctx.parse_events()
+		}
+	}
+}
+
+fn (mut ctx Context) parse_events() {
+	// Stop this from getting stuck in rare cases where something isn't parsed correctly
+	mut nr_iters := 0
+	for ctx.read_buf.len > 0 {
+		nr_iters++
+		if nr_iters > 100 {
+			ctx.shift(1)
+		}
+		mut event := &Event(0)
+		if ctx.read_buf[0] == 0x1b {
+			e, len := escape_sequence(ctx.read_buf.bytestr())
+			event = e
+			ctx.shift(len)
+		} else {
+			event = single_char(ctx.read_buf.bytestr())
+			ctx.shift(1)
+		}
+		if event != 0 {
+			ctx.event(event)
+			nr_iters = 0
+		}
+	}
+}
+
+[inline]
+fn (mut ctx Context) shift(len int) {
+	unsafe {
+		C.memmove(ctx.read_buf.data, &byte(ctx.read_buf.data) + len, ctx.read_buf.cap - len)
+		ctx.resize_arr(ctx.read_buf.len - len)
+	}
+}
+
+[inline]
+fn (mut ctx Context) resize_arr(size int) {
+	mut l := unsafe { &ctx.read_buf.len }
+	unsafe {
+		*l = size
+		_ = l
+	}
+}
+
+fn single_char(buf string) &Event {
+	ch := buf[0]
+
+	mut event := &Event{
+		typ: .key_down
+		ascii: ch
+		code: KeyCode(ch)
+		utf8: buf
+	}
+
+	return event
+}
+
+fn escape_end(buf string) int {
+	mut i := 0
+	for {
+		if i + 1 == buf.len {
+			return buf.len
+		}
+
+		if buf[i].is_letter() || buf[i] == `~` {
+			if buf[i] == `O` && i + 2 <= buf.len {
+				n := buf[i + 1]
+				if (n >= `A` && n <= `D`) || (n >= `P` && n <= `S`) || n == `F` || n == `H` {
+					return i + 2
+				}
+			}
+			return i + 1
+			// escape hatch to avoid potential issues/crashes, although ideally this should never eval to true
+		} else if buf[i + 1] == 0x1b {
+			return i + 1
+		}
+		i++
+	}
+	// this point should be unreachable
+	assert false
+	return 0
+}
+
+fn escape_sequence(buf_ string) (&Event, int) {
+	end := escape_end(buf_)
+	single := buf_[..end] // read until the end of the sequence
+	buf := single[1..] // skip the escape character
+
+	if buf.len == 0 {
+		return &Event{
+			typ: .key_down
+			ascii: 27
+			code: .escape
+			utf8: single
+		}, 1
+	}
+	// ----------------------------
+	//   Special key combinations
+	// ----------------------------
+
+	mut code := KeyCode.null
+	match buf {
+		'[A', 'OA' { code = .up }
+		'[B', 'OB' { code = .down }
+		'[C', 'OC' { code = .right }
+		'[D', 'OD' { code = .left }
+		'[5~', '[[5~' { code = .page_up }
+		'[6~', '[[6~' { code = .page_down }
+		'[F', 'OF', '[4~', '[[8~' { code = .end }
+		'[H', 'OH', '[1~', '[[7~' { code = .home }
+		'[2~' { code = .insert }
+		'[3~' { code = .delete }
+		'OP', '[11~' { code = .f1 }
+		'OQ', '[12~' { code = .f2 }
+		'OR', '[13~' { code = .f3 }
+		'OS', '[14~' { code = .f4 }
+		'[15~' { code = .f5 }
+		'[17~' { code = .f6 }
+		'[18~' { code = .f7 }
+		'[19~' { code = .f8 }
+		'[20~' { code = .f9 }
+		'[21~' { code = .f10 }
+		'[23~' { code = .f11 }
+		'[24~' { code = .f12 }
+		else {}
+	}
+
+	if buf.len == 5 && buf[0] == `[` && buf[1].is_digit() && buf[2] == `;` {
+		if buf[1] == `1` {
+			match buf[4] {
+				`A` { code = KeyCode.up }
+				`B` { code = KeyCode.down }
+				`C` { code = KeyCode.right }
+				`D` { code = KeyCode.left }
+				`F` { code = KeyCode.end }
+				`H` { code = KeyCode.home }
+				`P` { code = KeyCode.f1 }
+				`Q` { code = KeyCode.f2 }
+				`R` { code = KeyCode.f3 }
+				`S` { code = KeyCode.f4 }
+				else {}
+			}
+		} else if buf[1] == `5` {
+			code = KeyCode.page_up
+		} else if buf[1] == `6` {
+			code = KeyCode.page_down
+		}
+	}
+
+	return &Event{
+		typ: .key_down
+		code: code
+		utf8: single
+	}, end
+}
+
+pub fn (mut ctx Context) run() ? {
+	ctx.termios_loop()
+}
+
+pub fn init(cfg EventConfig) &Context {
+	mut ctx := &Context{
+		cfg: cfg
+	}
+	ctx.read_buf = []byte{cap: cfg.buffer_size}
+	return ctx
+}
+
+[inline]
+fn (ctx &Context) init() {
+	if ctx.cfg.init_fn != voidptr(0) {
+		ctx.cfg.init_fn(ctx.cfg.user_data)
+	}
+}
+
+[inline]
+fn (ctx &Context) event(event &Event) {
+	if ctx.cfg.event_fn != voidptr(0) {
+		ctx.cfg.event_fn(event, ctx.cfg.user_data)
+	}
 }
