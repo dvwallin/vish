@@ -1,20 +1,20 @@
-# vish
+# vlsh
 A shell coded in [V](https://vlang.io). Work in progress.
 
 ## Install and use
 either
 ```
-git clone https://github.com/dvwallin/vish.git
-cd vish
+git clone https://github.com/dvwallin/vlsh.git
+cd vlsh
 v .
-./vish
+./vlsh
 ```
 
 or
 ```
-git clone https://github.com/dvwallin/vish.git
-cd vish
-v run vish.v
+git clone https://github.com/dvwallin/vlsh.git
+cd vlsh
+v run vlsh.v
 ```
 
 ## Credits
