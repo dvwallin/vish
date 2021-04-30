@@ -1,5 +1,6 @@
 # vlsh
 A shell coded in [V](https://vlang.io). Work in progress.
+Many features are missing and lots of bugs exist. Do **NOT** use for anything important or in anyway other than as a toy or experiment.
 
 ## Install
 either
