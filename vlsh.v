@@ -33,7 +33,11 @@ fn handler() {
 fn main() {
 	os.signal(2, handler)
 	os.signal(1, handler)
-	mut history := os.open_append(history_file) ?
+	mut history_writer := os.open_append(history_file) ?
+
+	mut history := os.read_lines(history_file) ?
+	debug(history.join(''))
+
 
 	// reading in configuration file to handle paths and aliases
 	mut cfg := Cfg{}
@@ -58,6 +62,12 @@ fn main() {
 
 		// a command is always expected
 		cmd := stdin[0]
+		full_cmd := stdin.join(' ')
+		if unique_history_cmd(history, full_cmd) {
+			history_writer.write_string(stdin.join(' ') + '\n') ? //@todo: only write unique
+			history << full_cmd
+			debug('wrote unique cmd to history: ${full_cmd}')
+		}
 
 		// handle possible arguments
 		mut args := []string{}
@@ -65,7 +75,6 @@ fn main() {
 			args << stdin[1..]
 		}
 
-		history.write_string(stdin.join(' ') + '\n') ? //@todo: only write unique
 		match cmd {
 			'cd' {
 				mut target := os.home_dir()
@@ -188,7 +197,7 @@ fn main() {
 			}
 		}
 	}
-	history.close()
+	history_writer.close()
 	exit(0)
 }
 
@@ -285,4 +294,13 @@ fn ls_cmd(args []string) ?[]Ent {
 	 ents << ent_obj
 	}
 	return ents 
+}
+
+fn unique_history_cmd(history []string, full_cmd string) bool {
+	for line in history {
+		if full_cmd == line {
+			return false
+		}
+	}
+	return true
 }
