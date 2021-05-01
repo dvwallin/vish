@@ -2,7 +2,8 @@
 A shell coded in [V](https://vlang.io). Work in progress.
 Many features are missing and lots of bugs exist. Do **NOT** use for anything important or in anyway other than as a toy or experiment.
 
-## Install
+
+## INSTALL
 either
 ```
 git clone https://github.com/dvwallin/vlsh.git
@@ -18,18 +19,28 @@ cd vlsh
 v run vlsh.v
 ```
 
-## Use
+## USE
 vlsh is **NOT** stable enough for daily use or any kind of production.
 If you wanna use it just compile it and run it and experiment but there will be loads of bugs.
 
 To get debug-info simply start it like so: `VLSHDEBUG=true vlsh` or `VLSHDEBUG=true v run vlsh.v`
 
 
-## Credits
+## TODO
+[x] ~~save unique commands~~
+[x] ~~config file for aliases and paths~~
+[] command history by using arrow keys
+[] search command history with ctrl+r
+[] plugin support
+[] theme support
+
+
+
+## CREDITS
 Originally created by [onyxcode](https://github.com/onyxcode/vish)
 
 
-## License
+## LICENSE
 MIT License
 
 Copyright (c) [2021] [David Satime Wallin <david@dwall.in>]
