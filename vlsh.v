@@ -16,7 +16,7 @@ const (
 pub struct EventConfig {
 	user_data            voidptr
 	init_fn              fn(voidptr)
-	event_fn             fn(&Event, voidptr)
+	event_fn             fn(&Event, voidptr, chan Event)
 	fail_fn              fn(string)
 
 	buffer_size          int = 256
@@ -223,11 +223,20 @@ fn main() {
 	// reading in configuration file to handle paths and aliases
 	mut cfg := read_cfg() ?
 
+	// @todo : Need to handle events here somehow?!?!
+	//ch := chan Event{}
+	//mut app := &App{}
+	//app.evnt = init(
+		//user_data: app
+		//event_fn: event
+	//)
+	//println(app)
+	//e := go app.evnt.run(ch)
+	//e.wait() ?
+	//f := go test(ch)
+	//f.wait()
+
 	for {
-
-		mut app := &App{}
-		app.evnt.run() ?
-
 		prompt := term.colorize(term.bold, '$os.getwd()').replace('$os.home_dir()', '~')
 		mut stdin := (os.input_opt('$prompt\n☣ ') or {
 			exit(1)
@@ -506,21 +515,27 @@ fn unique_history_cmd(history []string, full_cmd string) bool {
 	return true
 }
 
-fn (mut ctx Context) termios_loop() {
-	ctx.cfg.event_fn = ctx.event
-	if ctx.cfg.event_fn != voidptr(0) {
-		unsafe {
-			len := C.read(C.STDIN_FILENO, byteptr(ctx.read_buf.data) + ctx.read_buf.len,
-				ctx.read_buf.cap - ctx.read_buf.len)
-			ctx.resize_arr(ctx.read_buf.len + len)
+fn (mut ctx Context) termios_loop(ch chan Event) {
+	mut init_called := false
+	for {
+		if !init_called {
+			ctx.init()
+			init_called = true
 		}
-		if ctx.read_buf.len > 0 {
-			ctx.parse_events()
+		if ctx.cfg.event_fn != voidptr(0) {
+			unsafe {
+				len := C.read(C.STDIN_FILENO, byteptr(ctx.read_buf.data) + ctx.read_buf.len,
+					ctx.read_buf.cap - ctx.read_buf.len)
+				ctx.resize_arr(ctx.read_buf.len + len)
+			}
+			if ctx.read_buf.len > 0 {
+				ctx.parse_events(ch)
+			}
 		}
 	}
 }
 
-fn (mut ctx Context) parse_events() {
+fn (mut ctx Context) parse_events(ch chan Event) {
 	// Stop this from getting stuck in rare cases where something isn't parsed correctly
 	mut nr_iters := 0
 	for ctx.read_buf.len > 0 {
@@ -538,7 +553,7 @@ fn (mut ctx Context) parse_events() {
 			ctx.shift(1)
 		}
 		if event != 0 {
-			ctx.event(event)
+			ctx.event(event, ch)
 			nr_iters = 0
 		}
 	}
@@ -673,8 +688,8 @@ fn escape_sequence(buf_ string) (&Event, int) {
 	}, end
 }
 
-pub fn (mut ctx Context) run() ? {
-	ctx.termios_loop()
+pub fn (mut ctx Context) run(ch chan Event) ? {
+	ctx.termios_loop(ch)
 }
 
 pub fn init(cfg EventConfig) &Context {
@@ -693,8 +708,15 @@ fn (ctx &Context) init() {
 }
 
 [inline]
-fn (ctx &Context) event(event &Event) {
+fn (ctx &Context) event(event &Event, ch chan Event) {
 	if ctx.cfg.event_fn != voidptr(0) {
-		ctx.cfg.event_fn(event, ctx.cfg.user_data)
+		ctx.cfg.event_fn(event, ctx.cfg.user_data, ch)
+	}
+}
+
+fn event(e &Event, x voidptr, ch chan Event) {
+	ch.try_push(event)
+	if e.typ == .key_down && e.code == .escape {
+		exit(0)
 	}
 }
