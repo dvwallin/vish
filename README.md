@@ -27,18 +27,13 @@ To get debug-info simply start it like so: `VLSHDEBUG=true vlsh` or `VLSHDEBUG=t
 
 
 ## TODO
-[x] ~~save unique commands~~
-
-[x] ~~config file for aliases and paths~~
-
-[] command history by using arrow keys
-
-[] search command history with ctrl+r
-
-[] plugin support
-
-[] theme support
-
+- [x] ~~save unique commands~~
+- [x] ~~config file for aliases and paths~~
+- [] command history by using arrow keys
+- [] search command history with ctrl+r
+- [] plugin support
+- [] theme support
+- [] pipes
 
 
 ## CREDITS
