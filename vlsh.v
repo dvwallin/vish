@@ -3,6 +3,9 @@ module main
 import os
 import term
 
+import utils
+import ls_cmd
+
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -10,7 +13,6 @@ import term
 const (
 	history_file = [os.home_dir(), '.vlsh_history'].join('/')
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
-	debug_mode = os.getenv('VLSHDEBUG')
 )
 
 pub struct EventConfig {
@@ -32,14 +34,6 @@ struct Cfg {
 	mut:
 	paths []string
 	aliases map[string]string
-}
-
-struct Ent {
-	mut:
-	fullpath string
-	name string
-	output string
-	len int
 }
 
 struct App {
@@ -206,7 +200,7 @@ fn read_cfg() ?Cfg {
 	// populate config struct with paths found in .vlshrc.
 	cfg.extract_paths(config_file_data)
 
-	debug(cfg)
+	utils.debug(cfg)
 
 	return cfg
 }
@@ -217,7 +211,7 @@ fn main() {
 	mut history_writer := os.open_append(history_file) ?
 
 	mut history := os.read_lines(history_file) ?
-	debug(history.join(''))
+	utils.debug(history.join(''))
 
 
 	// reading in configuration file to handle paths and aliases
@@ -238,7 +232,7 @@ fn main() {
 
 	for {
 		prompt := term.colorize(term.bold, '$os.getwd()').replace('$os.home_dir()', '~')
-		mut stdin := (os.input_opt('$prompt\n☣ ') or {
+		mut stdin := (os.input_opt('\n$prompt\n☣ ') or {
 			exit(1)
 			panic('Exiting: $err')
 			''
@@ -250,7 +244,7 @@ fn main() {
 		if unique_history_cmd(history, full_cmd) {
 			history_writer.write_string(stdin.join(' ') + '\n') ? //@todo: only write unique
 			history << full_cmd
-			debug('wrote unique cmd to history: ${full_cmd}')
+			utils.debug('wrote unique cmd to history: ${full_cmd}')
 		}
 
 		// handle possible arguments
@@ -321,27 +315,7 @@ rmd			Removes directory.
 source			Reloads the config file.')
 			}
 			'ls' {
-				x, _ := term.get_terminal_size()
-				size := x / 3
-				debug('column size: ${size}')
-				output := ls_cmd(args)?
-				mut c := 0
-				for ent in output {
-					mut pad := 0
-					mut pad_string := ''
-					if pad < ent.len {
-						pad = size - ent.len
-					}
-					for i := 0; i < pad; i += 1 {
-						pad_string += ' '
-					}
-					print(ent.output + pad_string)
-					c += 1
-					if c == 3 {
-						print('\n')
-						c = 0
-					}
-				}
+				ls_cmd.run(args) ?
 			}
 			'mkdir' {
 				os.mkdir_all(args[0]) ?
@@ -386,7 +360,7 @@ source			Reloads the config file.')
 							return
 						}
 						mut child := os.new_process(path)
-						debug('args: ', args.join(' '))
+						utils.debug('args: ', args.join(' '))
 						child.set_args(args[0..])
 						child.run()
 						child.wait()
@@ -445,65 +419,6 @@ fn (mut cfg Cfg) extract_paths(config []string) {
 			}
 		}
 	}
-}
-
-fn debug<T>(input ...T) {
-	if debug_mode == 'true' {
-		print('debug::\t\t')
-		for i in input {
-			print(i)
-		}
-		print('\n')
-	}
-}
-
-fn ls_cmd(args []string) ?[]Ent {
-	mut target := '.'
-	mut ents := []Ent{}
-	mut show_hidden := false
-	if args.len > 0 {
-		mut target_arg := args[0].replace('~', os.home_dir())
-		if args[0] == 'la' || args[0] == '-la' {
-			show_hidden = true
-		}
-		if args.len > 1 {
-			target_arg = args[1].replace('~', os.home_dir())
-		}
-		debug('target_arg: ', target_arg)
-		if os.exists(target_arg) {
-			target = target_arg.trim_right('/')
-		}
-	}
-	debug('target: ', target)
-	mut ls := os.ls([target, '/'].join('')) ?
-	ls.sort()
-	for mut ent in ls {
-		if !show_hidden && ent.starts_with('.') {
-			continue
-		}
-		full_ent := os.real_path([target, ent].join('/'))
-		mut output := ['??', ent, 'unknown'].join('    ')
-		if os.is_dir(full_ent) {
-			output = term.colorize(term.blue, ent)
-			output = term.colorize(term.bold, output)
-		} else if os.is_executable(full_ent) {
-			output = term.colorize(term.bright_red, ent)
-		} else if os.is_link(full_ent) {
-			output = term.italic(ent)
-			output = term.bold(output)
-			output = term.bright_magenta(output)
-		} else if os.is_file(full_ent) {
-			output = term.colorize(term.bright_black, ent)
-		}
-		ent_obj := Ent{
-		 fullpath: full_ent,
-		 name: ent,
-		 output: output,
-		 len: ent.len
-	 }
-	 ents << ent_obj
-	}
-	return ents 
 }
 
 fn unique_history_cmd(history []string, full_cmd string) bool {
