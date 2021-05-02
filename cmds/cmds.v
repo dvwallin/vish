@@ -1,4 +1,4 @@
-module ls_cmd
+module cmds
 
 import os
 import term
@@ -13,11 +13,11 @@ struct Ent {
 	len int
 }
 
-pub fn run(args []string) ? { 
+pub fn ls(args []string) ? { 
 	x, _ := term.get_terminal_size()
 	size := x / 3
 	utils.debug('column size: ${size}')
-	output := cmd(args)?
+	output := ls_cmd(args)?
 	mut c := 0
 	for ent in output {
 		mut pad := 0
@@ -37,7 +37,7 @@ pub fn run(args []string) ? {
 	}
 }
 
-fn cmd(args []string) ?[]Ent {
+fn ls_cmd(args []string) ?[]Ent {
 	mut target := '.'
 	mut ents := []Ent{}
 	mut show_hidden := false
@@ -84,4 +84,22 @@ fn cmd(args []string) ?[]Ent {
 	 ents << ent_obj
 	}
 	return ents 
+}
+
+pub fn help() {
+				println('aliases			Shows a list of all declared aliases.
+cd			Change to provided directory.
+chmod			Change file/dir access attributes and permissions.
+clear			Clears the screen.
+cp			Copy source file/dir to destination.
+echo			Print entered message.
+exit			Exit the shell.
+help			Displays this message.
+ls			List all files and subdirectories in current directory.
+mkdir			Creates new directory.
+ocp			Override existing destination for cp.
+pwd			Displays the full path of current directory.
+rm			Removes file.
+rmd			Removes directory.
+source			Reloads the config file.')
 }

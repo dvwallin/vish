@@ -3,8 +3,9 @@ module main
 import os
 import term
 
+import exec
 import utils
-import ls_cmd
+import cmds
 
 #include <signal.h>
 #include <termios.h>
@@ -37,12 +38,12 @@ struct Cfg {
 }
 
 struct App {
-mut:
-    evnt &Context = 0
+	mut:
+	evnt &Context = 0
 }
 
 struct ExtraContext {
-mut:
+	mut:
 	read_buf []byte
 }
 
@@ -52,9 +53,9 @@ const (
 
 struct Context {
 	ExtraContext
-pub:
+	pub:
 	cfg 		  EventConfig
-mut:
+	mut:
 	print_buf  []byte
 	read_buf []byte
 }
@@ -176,7 +177,7 @@ enum EventType {
 }
 
 struct Event {
-pub:
+	pub:
 	typ EventType
 
 	code      KeyCode
@@ -211,8 +212,6 @@ fn main() {
 	mut history_writer := os.open_append(history_file) ?
 
 	mut history := os.read_lines(history_file) ?
-	utils.debug(history.join(''))
-
 
 	// reading in configuration file to handle paths and aliases
 	mut cfg := read_cfg() ?
@@ -221,8 +220,8 @@ fn main() {
 	//ch := chan Event{}
 	//mut app := &App{}
 	//app.evnt = init(
-		//user_data: app
-		//event_fn: event
+	//user_data: app
+	//event_fn: event
 	//)
 	//println(app)
 	//e := go app.evnt.run(ch)
@@ -231,10 +230,24 @@ fn main() {
 	//f.wait()
 
 	for {
+
+		git_branch_name := os.execute('git rev-parse --abbrev-ref HEAD')
+		mut git_branch_output := ''
+		if git_branch_name.exit_code == 0 {
+			git_branch_output = '\n𝌎 $git_branch_name.output.trim_space()'
+		}
+
+		git_branch_id := os.execute('git rev-parse --short HEAD')
+		if git_branch_id.exit_code == 0 {
+			git_branch_output = '$git_branch_output $git_branch_id.output.trim_space()'
+		}
+
+		git_branch_output = term.bg_rgb(232, 232, 232, git_branch_output)
+
 		prompt := term.colorize(term.bold, '$os.getwd()').replace('$os.home_dir()', '~')
-		mut stdin := (os.input_opt('\n$prompt\n☣ ') or {
+		mut stdin := (os.input_opt('$git_branch_output\n$prompt\n☣ ') or {
 			exit(1)
-			panic('Exiting: $err')
+			utils.fail('exiting: $err')
 			''
 		}).split(' ')
 
@@ -273,49 +286,29 @@ fn main() {
 				if os.exists(args[1]) {
 					os.chmod(args[1], ('0o' + args[0]).int())
 				} else {
-					println('chmod: error: path does not exist')
+					utils.fail('chmod: path does not exist')
 				}
 			}
 			'cp' {
-				if os.exists(args[0]) {
-					if os.exists(args[1]) {
-						println('cp: error: destination path exists, use ocp to override')
-					} else {
-						os.cp(args[0], args[1]) ?
-					}
-				} else {
-					println('cp: error: source path does not exist')
+				cmds.cp(args) or {
+					utils.fail(err.msg)
 				}
 			}
 			'ocp' {
 				if os.exists(args[0]) {
 					os.cp(args[0], args[1]) ?
 				} else {
-					println('ocp: error: source path does not exist')
+					utils.fail('ocp: source path does not exist')
 				}
 			}
 			'exit' {
 				exit(0)
 			}
 			'help' {
-				println('aliases			Shows a list of all declared aliases.
-cd			Change to provided directory.
-chmod			Change file/dir access attributes and permissions.
-clear			Clears the screen.
-cp			Copy source file/dir to destination.
-echo			Print entered message.
-exit			Exit the shell.
-help			Displays this message.
-ls			List all files and subdirectories in current directory.
-mkdir			Creates new directory.
-ocp			Override existing destination for cp.
-pwd			Displays the full path of current directory.
-rm			Removes file.
-rmd			Removes directory.
-source			Reloads the config file.')
+				cmds.help()
 			}
 			'ls' {
-				ls_cmd.run(args) ?
+				cmds.ls(args) ?
 			}
 			'mkdir' {
 				os.mkdir_all(args[0]) ?
@@ -324,21 +317,13 @@ source			Reloads the config file.')
 				println(os.getwd())
 			}
 			'rm' {
-				if os.exists(args[0]) {
-					if os.is_dir(args[0]) {
-						println("rm: error: cannot remove '" + args[0] + "': Is a directory")
-					} else {
-						os.rm(args[0]) ?
-					}
-				} else {
-					println("rm: error: cannot remove'" + args[0] + "': Path does not exist")
+				cmds.rm(args) or {
+					utils.fail(err.msg)
 				}
 			}
 			'rmdir' {
-				if os.exists(args[0]) {
-					os.rmdir(args[0]) ?
-				} else {
-					println("rm: error: cannot remove'" + args[0] + "': Path does not exist")
+				cmds.rmdir(args) or {
+					utils.fail(err.msg)
 				}
 			}
 			'source' {
@@ -349,23 +334,13 @@ source			Reloads the config file.')
 				println(stdin.join(' '))
 			}
 			else {
-				if alias_key_exists(cmd, cfg.aliases) {
-					os.execute(cfg.aliases[cmd])
-				} else {
-					// assume it's a program being run
-					ok, path := cfg.find_exe(cmd)
-					if ok {
-						if !os.is_executable(path) {
-							println([path, 'is not executable'].join(' '))
-							return
-						}
-						mut child := os.new_process(path)
-						utils.debug('args: ', args.join(' '))
-						child.set_args(args[0..])
-						child.run()
-						child.wait()
-					} else {
-						println('command not found: ' + cmd)
+				alias_ok := exec.try_exec_alias(cmd, cfg.aliases) or {
+					utils.fail(err.msg)
+					return
+				}
+				if !alias_ok {
+					exec.try_exec_cmd(cmd, args, cfg.paths) or {
+						utils.fail(err.msg)
 					}
 				}
 			}
@@ -373,26 +348,6 @@ source			Reloads the config file.')
 	}
 	history_writer.close()
 	exit(0)
-}
-
-fn alias_key_exists(key string, aliases map[string]string) bool {
-	for i, _ in aliases {
-		if i == key {
-			return true
-		}
-	}
-
-	return false
-}
-
-fn (cfg Cfg) find_exe(needle string) (bool, string) {
-	for path in cfg.paths {
-		if os.exists([path, needle].join('/')) {
-			return true, [path, needle].join('/') // will return on first hit 
-		}
-	}
-
-	return false, ''
 }
 
 fn (mut cfg Cfg) extract_aliases(config []string) {
@@ -414,7 +369,8 @@ fn (mut cfg Cfg) extract_paths(config []string) {
 				if os.exists(os.real_path(path)) {
 					cfg.paths << path
 				} else {
-					println(['could not find', os.real_path(path)].join(' '))
+					real_path := os.real_path(path)
+					utils.fail('could not find ${real_path}')
 				}
 			}
 		}
@@ -440,7 +396,7 @@ fn (mut ctx Context) termios_loop(ch chan Event) {
 		if ctx.cfg.event_fn != voidptr(0) {
 			unsafe {
 				len := C.read(C.STDIN_FILENO, byteptr(ctx.read_buf.data) + ctx.read_buf.len,
-					ctx.read_buf.cap - ctx.read_buf.len)
+				ctx.read_buf.cap - ctx.read_buf.len)
 				ctx.resize_arr(ctx.read_buf.len + len)
 			}
 			if ctx.read_buf.len > 0 {
