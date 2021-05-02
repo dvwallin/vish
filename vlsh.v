@@ -14,7 +14,38 @@ import cmds
 const (
 	history_file = [os.home_dir(), '.vlsh_history'].join('/')
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
+	
+	ctx_ptr = &Context(0)
 )
+
+struct App {
+	mut:
+	evnt &Context = 0
+}
+
+struct Cfg {
+	mut:
+	paths []string
+	aliases map[string]string
+}
+
+struct Context {
+	ExtraContext
+	pub:
+	cfg 		  EventConfig
+	mut:
+	print_buf  []byte
+	read_buf []byte
+}
+
+struct Event {
+	pub:
+	typ EventType
+
+	code      KeyCode
+	ascii     byte
+	utf8      string
+}
 
 pub struct EventConfig {
 	user_data            voidptr
@@ -31,33 +62,14 @@ pub struct EventConfig {
 	reset                []int = [1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 14, 15, 19]
 }
 
-struct Cfg {
-	mut:
-	paths []string
-	aliases map[string]string
-}
-
-struct App {
-	mut:
-	evnt &Context = 0
-}
-
 struct ExtraContext {
 	mut:
 	read_buf []byte
 }
 
-const (
-	ctx_ptr = &Context(0)
-)
-
-struct Context {
-	ExtraContext
-	pub:
-	cfg 		  EventConfig
-	mut:
-	print_buf  []byte
-	read_buf []byte
+enum EventType {
+	unknown
+	key_down
 }
 
 enum KeyCode {
@@ -171,20 +183,6 @@ enum KeyCode {
 	f24 = 313
 }
 
-enum EventType {
-	unknown
-	key_down
-}
-
-struct Event {
-	pub:
-	typ EventType
-
-	code      KeyCode
-	ascii     byte
-	utf8      string
-}
-
 fn handler() {
 	println('')
 	exit(0)
@@ -193,14 +191,13 @@ fn handler() {
 fn read_cfg() ?Cfg {
 	mut cfg := Cfg{}
 	config_file_data := os.read_lines(config_file) ?
-
 	// populate config struct with aliases found in .vlshrc.
 	// duplicate aliases will be overwritten
 	cfg.extract_aliases(config_file_data)
-
 	// populate config struct with paths found in .vlshrc.
-	cfg.extract_paths(config_file_data)
-
+	cfg.extract_paths(config_file_data) or {
+		utils.fail(err.msg)
+	}
 	utils.debug(cfg)
 
 	return cfg
@@ -351,7 +348,7 @@ fn (mut cfg Cfg) extract_aliases(config []string) {
 	}
 }
 
-fn (mut cfg Cfg) extract_paths(config []string) {
+fn (mut cfg Cfg) extract_paths(config []string) ? {
 	for ent in config {
 		if ent[0..4].trim_space() == 'path' {
 			cleaned_ent := ent.replace('path', '').replace('=', '')
@@ -362,7 +359,7 @@ fn (mut cfg Cfg) extract_paths(config []string) {
 					cfg.paths << path
 				} else {
 					real_path := os.real_path(path)
-					utils.fail('could not find ${real_path}')
+					return error('could not find ${real_path}')
 				}
 			}
 		}
