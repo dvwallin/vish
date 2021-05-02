@@ -273,20 +273,14 @@ fn main() {
 				}
 			}
 			'cd' {
-				mut target := os.home_dir()
-				if args.len > 0 {
-					target = args[0]
-				}
-				os.chdir(target)
+				cmds.cd(args)
 			}
 			'clear' {
 				term.clear()
 			}
 			'chmod' {
-				if os.exists(args[1]) {
-					os.chmod(args[1], ('0o' + args[0]).int())
-				} else {
-					utils.fail('chmod: path does not exist')
+				cmds.chmod(args) or {
+					utils.fail(err.msg)
 				}
 			}
 			'cp' {
@@ -295,10 +289,8 @@ fn main() {
 				}
 			}
 			'ocp' {
-				if os.exists(args[0]) {
-					os.cp(args[0], args[1]) ?
-				} else {
-					utils.fail('ocp: source path does not exist')
+				cmds.ocp(args) or {
+					utils.fail(err.msg)
 				}
 			}
 			'exit' {

@@ -103,3 +103,19 @@ rm			Removes file.
 rmd			Removes directory.
 source			Reloads the config file.')
 }
+
+pub fn chmod(args []string) ? {
+	if os.exists(args[1]) {
+		os.chmod(args[1], ('0o' + args[0]).int())
+	} else {
+		return error('"${args[0]}" does not exist')
+	}
+}
+
+pub fn cd(args []string) {
+	mut target := os.home_dir()
+	if args.len > 0 {
+		target = args[0]
+	}
+	os.chdir(target)
+}
