@@ -36,19 +36,9 @@ fn main() {
 	mut r := Readline{}
 	r.enable_raw_mode()
 	for {
-		git_branch_name := os.execute('git rev-parse --abbrev-ref HEAD')
-		mut git_branch_output := ''
-		if git_branch_name.exit_code == 0 {
-			git_branch_output = '\n𝌎 $git_branch_name.output.trim_space()'
-		}
-
-		git_branch_id := os.execute('git rev-parse --short HEAD')
-		if git_branch_id.exit_code == 0 {
-			git_branch_output = '$git_branch_output $git_branch_id.output.trim_space()'
-		}
-		git_branch_output = term.bg_rgb(232, 232, 232, git_branch_output)
 		mut home_dir := term.colorize(term.bold, '$os.getwd() ')
-		home_dir = home_dir.replace('($git_branch_output) $os.home_dir()', '~')
+		home_dir = home_dir.replace('$os.home_dir()', '~')
+		git_branch_output := utils.get_git_info()
 		println(git_branch_output)
 		println(home_dir)
 		cmd := r.read_line_utf8(term.red('->')) ?
@@ -135,9 +125,6 @@ fn main_loop(input string) {
 				utils.fail('could not read $config_file')
 				return
 			}
-		}
-		'echo' {
-			println(args.join(' '))
 		}
 		else {
 			alias_ok := exec.try_exec_alias(cmd, cfg.aliases, cfg.paths) or {

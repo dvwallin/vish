@@ -12,10 +12,30 @@ pub fn try_exec_alias(alias string, aliases map[string]string, paths []string) ?
 		utils.debug('found $alias in $aliases')
 		return try_exec_cmd(cmd, args, paths)
 	}
-	return error('could not execute ${aliases[alias]}')
+	return false
 }
 
 pub fn try_exec_cmd(cmd string, args []string, paths []string) ?bool {
+	println(args)
+	
+	mut args_string := args.join(' ')
+	args_string = '$cmd $args_string'
+	has_pipe := args_string.contains('|')
+
+	if has_pipe {
+
+		pipe_split := args_string.split('|')
+		for pipe in pipe_split {
+			utils.debug('running pipe $pipe')
+			pipe_sec_split := pipe.split(' ')
+			sub_cmd := pipe_sec_split[0]
+			sub_args := pipe_sec_split[1..]
+			try_exec_cmd(sub_cmd, sub_args, paths) ?
+		}
+
+		return true
+	}
+
 	ok, path := find_exe(cmd, paths)
 	if ok {
 		if !os.is_executable(path) {

@@ -20,3 +20,19 @@ pub fn debug<T>(input ...T) {
 		print('\n')
 	}
 }
+
+pub fn get_git_info() string {
+		git_branch_name := os.execute('git rev-parse --abbrev-ref HEAD')
+		mut git_branch_output := ''
+		if git_branch_name.exit_code == 0 {
+			git_branch_output = '\n𝌎 $git_branch_name.output.trim_space()'
+		}
+
+		git_branch_id := os.execute('git rev-parse --short HEAD')
+		if git_branch_id.exit_code == 0 {
+			git_branch_output = '$git_branch_output $git_branch_id.output.trim_space()'
+		}
+		git_branch_output = term.bg_rgb(232, 232, 232, git_branch_output)
+
+		return git_branch_output
+}

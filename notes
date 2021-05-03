@@ -1,0 +1,1 @@
+the main cmd loop -match should be moved into exec.v and be seen as internal commands which only returns and doesn't print. this to be able to handle their output in piping as input into other commands/aliases/applications.
