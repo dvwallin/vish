@@ -2,74 +2,23 @@ module main
 
 import os
 import term
+import readline { Readline }
 
+import cmds
 import exec
 import utils
-import cmds
 
 #include <signal.h>
-#include <termios.h>
-#include <sys/ioctl.h>
 
 const (
 	history_file = [os.home_dir(), '.vlsh_history'].join('/')
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
-	
-	ctx_ptr = &Context(0)
 )
-
-struct App {
-	mut:
-	evnt &Context = 0
-}
 
 struct Cfg {
 	mut:
 	paths []string
 	aliases map[string]string
-}
-
-struct Context {
-	ExtraContext
-	pub:
-	cfg 		  EventConfig
-	mut:
-	print_buf  []byte
-	read_buf []byte
-}
-
-struct Event {
-	pub:
-	typ EventType
-
-	code      KeyCode
-	ascii     byte
-	utf8      string
-}
-
-pub struct EventConfig {
-	user_data            voidptr
-	init_fn              fn(voidptr)
-	event_fn             fn(&Event, voidptr, chan Event)
-	fail_fn              fn(string)
-
-	buffer_size          int = 256
-
-	capture_events       bool
-	use_alternate_buffer bool = true
-	skip_init_checks     bool
-	// All kill signals to set up exit listeners on
-	reset                []int = [1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 14, 15, 19]
-}
-
-struct ExtraContext {
-	mut:
-	read_buf []byte
-}
-
-enum EventType {
-	unknown
-	key_down
 }
 
 enum KeyCode {
@@ -191,10 +140,7 @@ fn handler() {
 fn read_cfg() ?Cfg {
 	mut cfg := Cfg{}
 	config_file_data := os.read_lines(config_file) ?
-	// populate config struct with aliases found in .vlshrc.
-	// duplicate aliases will be overwritten
 	cfg.extract_aliases(config_file_data)
-	// populate config struct with paths found in .vlshrc.
 	cfg.extract_paths(config_file_data) or {
 		utils.fail(err.msg)
 	}
@@ -204,30 +150,9 @@ fn read_cfg() ?Cfg {
 }
 
 fn main() {
-	os.signal(2, handler)
-	os.signal(1, handler)
-	mut history_writer := os.open_append(history_file) ?
-
-	mut history := os.read_lines(history_file) ?
-
-	// reading in configuration file to handle paths and aliases
-	mut cfg := read_cfg() ?
-
-	// @todo : Need to handle events here somehow?!?!
-	//ch := chan Event{}
-	//mut app := &App{}
-	//app.evnt = init(
-	//user_data: app
-	//event_fn: event
-	//)
-	//println(app)
-	//e := go app.evnt.run(ch)
-	//e.wait() ?
-	//f := go test(ch)
-	//f.wait()
-
+	mut r := Readline{}
+	r.enable_raw_mode_nosig()
 	for {
-
 		git_branch_name := os.execute('git rev-parse --abbrev-ref HEAD')
 		mut git_branch_output := ''
 		if git_branch_name.exit_code == 0 {
@@ -238,105 +163,111 @@ fn main() {
 		if git_branch_id.exit_code == 0 {
 			git_branch_output = '$git_branch_output $git_branch_id.output.trim_space()'
 		}
-
 		git_branch_output = term.bg_rgb(232, 232, 232, git_branch_output)
+		mut home_dir := term.colorize(term.bold, '$os.getwd() ')
+		home_dir = home_dir.replace('($git_branch_output) $os.home_dir()', '~')
+		println(git_branch_output)
+		println(home_dir)
+		cmd := r.read_line_utf8(term.red('->')) ?
+		main_loop(cmd.str().trim_space())
+	}
+	r.disable_raw_mode()
+}
 
-		prompt := term.colorize(term.bold, '$os.getwd()').replace('$os.home_dir()', '~')
-		mut stdin := (os.input_opt('$git_branch_output\n$prompt\n☣ ') or {
-			exit(1)
-			utils.fail('exiting: $err')
-			''
-		}).split(' ')
+fn main_loop(input string) {
 
-		// a command is always expected
-		cmd := stdin[0]
-		full_cmd := stdin.join(' ')
-		if unique_history_cmd(history, full_cmd) {
-			history_writer.write_string(stdin.join(' ') + '\n') ? //@todo: only write unique
-			history << full_cmd
-			utils.debug('wrote unique cmd to history: ${full_cmd}')
+	input_split := input.split(' ')
+	cmd := input_split[0]
+	mut args := []string{}
+	if input_split.len > 1 {
+		args << input_split[1..]
+	}
+
+	// reading in configuration file to handle paths and aliases
+	mut cfg := read_cfg() or {
+		utils.fail('could not read $config_file')
+		return
+	}
+
+	match cmd {
+		'aliases' {
+			for alias_name, alias_cmd in cfg.aliases {
+				print('${term.bold(alias_name)} : ${term.italic(alias_cmd)}\n')
+			}
 		}
-
-		// handle possible arguments
-		mut args := []string{}
-		if stdin.len > 1 {
-			args << stdin[1..]
+		'cd' {
+			cmds.cd(args)
 		}
-
-		match cmd {
-			'aliases' {
-				for alias_name, alias_cmd in cfg.aliases {
-					print('${term.bold(alias_name)} : ${term.italic(alias_cmd)}\n')
-				}
+		'clear' {
+			term.clear()
+		}
+		'chmod' {
+			cmds.chmod(args) or {
+				utils.fail(err.msg)
 			}
-			'cd' {
-				cmds.cd(args)
+		}
+		'cp' {
+			cmds.cp(args) or {
+				utils.fail(err.msg)
 			}
-			'clear' {
-				term.clear()
+		}
+		'ocp' {
+			cmds.ocp(args) or {
+				utils.fail(err.msg)
 			}
-			'chmod' {
-				cmds.chmod(args) or {
+		}
+		'exit' {
+			exit(0)
+		}
+		'help' {
+			cmds.help()
+		}
+		'ls' {
+			cmds.ls(args) or {
+				utils.fail('could not read directory')
+				return
+			}
+		}
+		'mkdir' {
+			os.mkdir_all(args[0]) or {
+				utils.fail('could not create ${args[0]}')
+				return
+			}
+		}
+		'pwd' {
+			println(os.getwd())
+		}
+		'rm' {
+			cmds.rm(args) or {
+				utils.fail(err.msg)
+			}
+		}
+		'rmdir' {
+			cmds.rmdir(args) or {
+				utils.fail(err.msg)
+			}
+		}
+		'source' {
+			cfg = read_cfg() or {
+				utils.fail('could not read $config_file')
+				return
+			}
+		}
+		'echo' {
+			println(args.join(' '))
+		}
+		else {
+			alias_ok := exec.try_exec_alias(cmd, cfg.aliases) or {
+				utils.fail(err.msg)
+				return
+			}
+			if !alias_ok {
+				exec.try_exec_cmd(cmd, args, cfg.paths) or {
 					utils.fail(err.msg)
-				}
-			}
-			'cp' {
-				cmds.cp(args) or {
-					utils.fail(err.msg)
-				}
-			}
-			'ocp' {
-				cmds.ocp(args) or {
-					utils.fail(err.msg)
-				}
-			}
-			'exit' {
-				exit(0)
-			}
-			'help' {
-				cmds.help()
-			}
-			'ls' {
-				cmds.ls(args) ?
-			}
-			'mkdir' {
-				os.mkdir_all(args[0]) ?
-			}
-			'pwd' {
-				println(os.getwd())
-			}
-			'rm' {
-				cmds.rm(args) or {
-					utils.fail(err.msg)
-				}
-			}
-			'rmdir' {
-				cmds.rmdir(args) or {
-					utils.fail(err.msg)
-				}
-			}
-			'source' {
-				cfg = read_cfg() ?
-			}
-			'echo' {
-				stdin.delete(0)
-				println(stdin.join(' '))
-			}
-			else {
-				alias_ok := exec.try_exec_alias(cmd, cfg.aliases) or {
-					utils.fail(err.msg)
-					return
-				}
-				if !alias_ok {
-					exec.try_exec_cmd(cmd, args, cfg.paths) or {
-						utils.fail(err.msg)
-					}
 				}
 			}
 		}
 	}
-	history_writer.close()
-	exit(0)
 }
 
 fn (mut cfg Cfg) extract_aliases(config []string) {
@@ -373,210 +304,4 @@ fn unique_history_cmd(history []string, full_cmd string) bool {
 		}
 	}
 	return true
-}
-
-fn (mut ctx Context) termios_loop(ch chan Event) {
-	mut init_called := false
-	for {
-		if !init_called {
-			ctx.init()
-			init_called = true
-		}
-		if ctx.cfg.event_fn != voidptr(0) {
-			unsafe {
-				len := C.read(C.STDIN_FILENO, byteptr(ctx.read_buf.data) + ctx.read_buf.len,
-				ctx.read_buf.cap - ctx.read_buf.len)
-				ctx.resize_arr(ctx.read_buf.len + len)
-			}
-			if ctx.read_buf.len > 0 {
-				ctx.parse_events(ch)
-			}
-		}
-	}
-}
-
-fn (mut ctx Context) parse_events(ch chan Event) {
-	// Stop this from getting stuck in rare cases where something isn't parsed correctly
-	mut nr_iters := 0
-	for ctx.read_buf.len > 0 {
-		nr_iters++
-		if nr_iters > 100 {
-			ctx.shift(1)
-		}
-		mut event := &Event(0)
-		if ctx.read_buf[0] == 0x1b {
-			e, len := escape_sequence(ctx.read_buf.bytestr())
-			event = e
-			ctx.shift(len)
-		} else {
-			event = single_char(ctx.read_buf.bytestr())
-			ctx.shift(1)
-		}
-		if event != 0 {
-			ctx.event(event, ch)
-			nr_iters = 0
-		}
-	}
-}
-
-[inline]
-fn (mut ctx Context) shift(len int) {
-	unsafe {
-		C.memmove(ctx.read_buf.data, &byte(ctx.read_buf.data) + len, ctx.read_buf.cap - len)
-		ctx.resize_arr(ctx.read_buf.len - len)
-	}
-}
-
-[inline]
-fn (mut ctx Context) resize_arr(size int) {
-	mut l := unsafe { &ctx.read_buf.len }
-	unsafe {
-		*l = size
-		_ = l
-	}
-}
-
-fn single_char(buf string) &Event {
-	ch := buf[0]
-
-	mut event := &Event{
-		typ: .key_down
-		ascii: ch
-		code: KeyCode(ch)
-		utf8: buf
-	}
-
-	return event
-}
-
-fn escape_end(buf string) int {
-	mut i := 0
-	for {
-		if i + 1 == buf.len {
-			return buf.len
-		}
-
-		if buf[i].is_letter() || buf[i] == `~` {
-			if buf[i] == `O` && i + 2 <= buf.len {
-				n := buf[i + 1]
-				if (n >= `A` && n <= `D`) || (n >= `P` && n <= `S`) || n == `F` || n == `H` {
-					return i + 2
-				}
-			}
-			return i + 1
-			// escape hatch to avoid potential issues/crashes, although ideally this should never eval to true
-		} else if buf[i + 1] == 0x1b {
-			return i + 1
-		}
-		i++
-	}
-	// this point should be unreachable
-	assert false
-	return 0
-}
-
-fn escape_sequence(buf_ string) (&Event, int) {
-	end := escape_end(buf_)
-	single := buf_[..end] // read until the end of the sequence
-	buf := single[1..] // skip the escape character
-
-	if buf.len == 0 {
-		return &Event{
-			typ: .key_down
-			ascii: 27
-			code: .escape
-			utf8: single
-		}, 1
-	}
-	// ----------------------------
-	//   Special key combinations
-	// ----------------------------
-
-	mut code := KeyCode.null
-	match buf {
-		'[A', 'OA' { code = .up }
-		'[B', 'OB' { code = .down }
-		'[C', 'OC' { code = .right }
-		'[D', 'OD' { code = .left }
-		'[5~', '[[5~' { code = .page_up }
-		'[6~', '[[6~' { code = .page_down }
-		'[F', 'OF', '[4~', '[[8~' { code = .end }
-		'[H', 'OH', '[1~', '[[7~' { code = .home }
-		'[2~' { code = .insert }
-		'[3~' { code = .delete }
-		'OP', '[11~' { code = .f1 }
-		'OQ', '[12~' { code = .f2 }
-		'OR', '[13~' { code = .f3 }
-		'OS', '[14~' { code = .f4 }
-		'[15~' { code = .f5 }
-		'[17~' { code = .f6 }
-		'[18~' { code = .f7 }
-		'[19~' { code = .f8 }
-		'[20~' { code = .f9 }
-		'[21~' { code = .f10 }
-		'[23~' { code = .f11 }
-		'[24~' { code = .f12 }
-		else {}
-	}
-
-	if buf.len == 5 && buf[0] == `[` && buf[1].is_digit() && buf[2] == `;` {
-		if buf[1] == `1` {
-			match buf[4] {
-				`A` { code = KeyCode.up }
-				`B` { code = KeyCode.down }
-				`C` { code = KeyCode.right }
-				`D` { code = KeyCode.left }
-				`F` { code = KeyCode.end }
-				`H` { code = KeyCode.home }
-				`P` { code = KeyCode.f1 }
-				`Q` { code = KeyCode.f2 }
-				`R` { code = KeyCode.f3 }
-				`S` { code = KeyCode.f4 }
-				else {}
-			}
-		} else if buf[1] == `5` {
-			code = KeyCode.page_up
-		} else if buf[1] == `6` {
-			code = KeyCode.page_down
-		}
-	}
-
-	return &Event{
-		typ: .key_down
-		code: code
-		utf8: single
-	}, end
-}
-
-pub fn (mut ctx Context) run(ch chan Event) ? {
-	ctx.termios_loop(ch)
-}
-
-pub fn init(cfg EventConfig) &Context {
-	mut ctx := &Context{
-		cfg: cfg
-	}
-	ctx.read_buf = []byte{cap: cfg.buffer_size}
-	return ctx
-}
-
-[inline]
-fn (ctx &Context) init() {
-	if ctx.cfg.init_fn != voidptr(0) {
-		ctx.cfg.init_fn(ctx.cfg.user_data)
-	}
-}
-
-[inline]
-fn (ctx &Context) event(event &Event, ch chan Event) {
-	if ctx.cfg.event_fn != voidptr(0) {
-		ctx.cfg.event_fn(event, ctx.cfg.user_data, ch)
-	}
-}
-
-fn event(e &Event, x voidptr, ch chan Event) {
-	ch.try_push(event)
-	if e.typ == .key_down && e.code == .escape {
-		exit(0)
-	}
 }
