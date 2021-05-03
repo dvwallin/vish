@@ -4,18 +4,15 @@ import os
 
 import utils
 
-pub fn try_exec_alias(cmd string, aliases map[string]string) ?bool{
-	if alias_key_exists(cmd, aliases) {
-		utils.debug('found alias ${cmd}')
-		response := os.execute(aliases[cmd])
-		if response.exit_code == 0 {
-			print(response.output)
-		} else {
-			return error('error in executing ${aliases[cmd]}. errco: response.exit_code')
-		}
-		return true
+pub fn try_exec_alias(alias string, aliases map[string]string, paths []string) ?bool{
+	if alias_key_exists(alias, aliases) {
+		alias_split := aliases[alias].split(' ')
+		cmd := alias_split[0]
+		args := alias_split[1..]
+		utils.debug('found $alias in $aliases')
+		return try_exec_cmd(cmd, args, paths)
 	}
-	return false
+	return error('could not execute ${aliases[alias]}')
 }
 
 pub fn try_exec_cmd(cmd string, args []string, paths []string) ?bool {
@@ -31,7 +28,7 @@ pub fn try_exec_cmd(cmd string, args []string, paths []string) ?bool {
 		child.wait()
 		return true
 	}
-	return error('could not exec "$cmd"')
+	return error('could not execute "$cmd"')
 }
 
 fn alias_key_exists(key string, aliases map[string]string) bool {

@@ -140,7 +140,7 @@ fn main_loop(input string) {
 			println(args.join(' '))
 		}
 		else {
-			alias_ok := exec.try_exec_alias(cmd, cfg.aliases) or {
+			alias_ok := exec.try_exec_alias(cmd, cfg.aliases, cfg.paths) or {
 				utils.fail(err.msg)
 				return
 			}
