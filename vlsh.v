@@ -12,6 +12,7 @@ import utils
 
 const (
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
+	version			 = '0.1'
 )
 
 struct Cfg {
@@ -70,19 +71,6 @@ fn main_loop(input string) {
 		'cd' {
 			cmds.cd(args)
 		}
-		'clear' {
-			term.clear()
-		}
-		'chmod' {
-			cmds.chmod(args) or {
-				utils.fail(err.msg)
-			}
-		}
-		'cp' {
-			cmds.cp(args) or {
-				utils.fail(err.msg)
-			}
-		}
 		'ocp' {
 			cmds.ocp(args) or {
 				utils.fail(err.msg)
@@ -94,30 +82,8 @@ fn main_loop(input string) {
 		'help' {
 			cmds.help()
 		}
-		'ls' {
-			cmds.ls(args) or {
-				utils.fail('could not read directory')
-				return
-			}
-		}
-		'mkdir' {
-			os.mkdir_all(args[0]) or {
-				utils.fail('could not create ${args[0]}')
-				return
-			}
-		}
-		'pwd' {
-			println(os.getwd())
-		}
-		'rm' {
-			cmds.rm(args) or {
-				utils.fail(err.msg)
-			}
-		}
-		'rmdir' {
-			cmds.rmdir(args) or {
-				utils.fail(err.msg)
-			}
+		'version' {
+			println('version $version')
 		}
 		'source' {
 			cfg = read_cfg() or {
@@ -126,7 +92,12 @@ fn main_loop(input string) {
 			}
 		}
 		else {
-			alias_ok := exec.try_exec_alias(cmd, cfg.aliases, cfg.paths) or {
+			alias_ok := exec.try_exec_alias(
+				cmd,
+				args,
+				cfg.aliases,
+				cfg.paths
+			) or {
 				utils.fail(err.msg)
 				return
 			}

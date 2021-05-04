@@ -18,21 +18,31 @@ pub fn ls(args []string) ? {
 	size := x / 3
 	utils.debug('column size: ${size}')
 	output := ls_cmd(args)?
+	mut single_column := false
+	if args.len > 0 {
+		if args[0] == 'la' || args[0] == '-la' {
+			single_column = true
+		}
+	}
 	mut c := 0
 	for ent in output {
-		mut pad := 0
-		mut pad_string := ''
-		if pad < ent.len {
-			pad = size - ent.len
-		}
-		for i := 0; i < pad; i += 1 {
-			pad_string += ' '
-		}
-		print(ent.output + pad_string)
-		c += 1
-		if c == 3 {
-			print('\n')
-			c = 0
+		if single_column {
+			println(ent.output)
+		} else {
+			mut pad := 0
+			mut pad_string := ''
+			if pad < ent.len {
+				pad = size - ent.len
+			}
+			for i := 0; i < pad; i += 1 {
+				pad_string += ' '
+			}
+			print(ent.output + pad_string)
+			c += 1
+			if c == 3 {
+				print('\n')
+				c = 0
+			}
 		}
 	}
 }
@@ -89,18 +99,10 @@ fn ls_cmd(args []string) ?[]Ent {
 pub fn help() {
 				println('aliases			Shows a list of all declared aliases.
 cd			Change to provided directory.
-chmod			Change file/dir access attributes and permissions.
-clear			Clears the screen.
-cp			Copy source file/dir to destination.
-echo			Print entered message.
 exit			Exit the shell.
 help			Displays this message.
-ls			List all files and subdirectories in current directory.
-mkdir			Creates new directory.
 ocp			Override existing destination for cp.
-pwd			Displays the full path of current directory.
-rm			Removes file.
-rmd			Removes directory.
+version 		Prints the version of vlsh.
 source			Reloads the config file.')
 }
 
