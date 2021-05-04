@@ -12,7 +12,7 @@ import utils
 
 const (
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
-	version			 = '0.1'
+	version		 = '0.1.2'
 )
 
 struct Cfg {
@@ -34,6 +34,7 @@ fn read_cfg() ?Cfg {
 }
 
 fn main() {
+	term.clear() //
 	mut r := Readline{}
 	r.enable_raw_mode()
 	for {
@@ -80,7 +81,7 @@ fn main_loop(input string) {
 			exit(0)
 		}
 		'help' {
-			cmds.help()
+			cmds.help(version)
 		}
 		'version' {
 			println('version $version')
