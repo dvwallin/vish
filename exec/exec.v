@@ -4,66 +4,206 @@ import os
 
 import utils
 
-pub fn try_exec_alias(
-	alias string,
-	args []string,
-	aliases map[string]string,
-	paths []string
-) ?bool{
-	if alias_key_exists(alias, aliases) {
-		alias_split := aliases[alias].split(' ')
-		cmd := alias_split[0]
-		mut combined_args := []string{}
-		combined_args << args
-		split_args := alias_split[1..]
-		combined_args << split_args
-		utils.debug('found $alias in $aliases')
-		utils.debug('will try to run $cmd with $combined_args')
-		return try_exec_cmd(cmd, combined_args, paths)
-	}
-	return false
+pub struct Cmd_object{
+	mut:
+	cmd						string
+	fullcmd					string
+	args					[]string
+	path					string
+	paths					[]string
+	aliases					map[string]string
+	input					string
+	set_redirect_stdio		bool
+	intercept_stdio			bool
+	next_pipe_index			int
 }
 
-pub fn try_exec_cmd(raw_cmd string, pre_args []string, paths []string) ?bool {
-	mut args_string := pre_args.join(' ')
-	args_string = '$raw_cmd $args_string'
-	has_pipe := args_string.contains('|')
+pub struct Task {
+	mut:
+	cmd			Cmd_object
+	pipe_string	string
+	pipe_cmds	[]Cmd_object
+}
 
-	if has_pipe {
+pub fn (mut t Task) prepare_task() ?string {
+	/*
+		prase possible pipes first.
+	*/
+	t.parse_pipe()
 
-		pipe_split := args_string.split('|')
-		for pipe in pipe_split {
-			utils.debug('running pipe $pipe')
-			pipe_sec_split := pipe.split(' ')
-			sub_cmd := pipe_sec_split[0]
-			sub_args := pipe_sec_split[1..]
-			try_exec_cmd(sub_cmd, sub_args, paths) ?
-		}
+	t.exec() or {
 
-		return true
-	}
-
-	ok, path, cmd := find_exe(raw_cmd, paths) or {
 		return err
 	}
-	if ok {
-		args := built_in_cmd_modifiers(cmd, pre_args)
-		if !os.is_executable(path) {
-			return error('"$path" is not executable')
+
+	return ''
+}
+
+fn (mut t Task) parse_pipe() {
+	t.pipe_string = norm_pipe([t.cmd.cmd, t.cmd.args.join(' ')].join(' '))
+	t.walk_pipes()
+}
+
+fn norm_pipe(i string) string {
+	mut r := []string{}
+	m := i.split('|')
+	for s in m {
+		mut p := s
+		p = p.trim_space()
+		if p != '' {
+			r << p
 		}
-		mut child := os.new_process(path)
-		utils.debug('args: ', args.join(' '))
-		child.set_args(args[0..])
-		child.run()
-		child.wait()
-		return true
 	}
-	return error('could not execute "$cmd"')
+
+	return r.join('|')
+}
+
+fn (mut t Task) walk_pipes() {
+	split_pipe_string := t.pipe_string.split('|')
+	len := split_pipe_string.len
+	for index, pipe_string in split_pipe_string {
+		split_pipe := pipe_string.split(' ')
+		cmd := split_pipe[0]
+		mut args := []string{}
+		if split_pipe.len > 1 {
+			args << split_pipe[1..]
+		}
+		mut intercept := true
+		mut next_index := index
+		if next_index + 1 == len {
+			intercept = false
+			next_index = -1
+		}
+		obj := Cmd_object{
+			cmd: cmd,
+			args: args,
+			paths: t.cmd.paths,
+			aliases: t.cmd.aliases,
+			intercept_stdio: intercept,
+			set_redirect_stdio: intercept,
+			next_pipe_index: next_index
+		}
+		if index == 0 {
+			t.cmd = obj
+		} else {
+			t.pipe_cmds << obj
+		}
+	}
+}
+
+fn (mut t Task) exec() ?bool {
+
+	/*
+		checking if we have any aliases defined first that we should
+		overwrite any actual given command with.
+	*/
+	t.handle_aliases()
+
+	/*
+		locate the given command in specifide paths.
+
+		@todo: should set some standard paths in the code..?
+	*/
+	t.cmd.find_exe() or {
+
+		return err
+	}
+
+	/*
+		also find_exec for each pipe cmd following.
+	*/
+	if t.pipe_cmds.len > 0 {
+		for i := 0; i < t.pipe_cmds.len; i++ {
+			t.pipe_cmds[i].find_exe() or {
+
+				return err
+			}
+		}
+	}
+
+	/*
+		apply certain flags to specific commands if they aren't set manually.
+	*/
+	t.cmd.internal_cmd_modifiers()
+
+	/*
+		also find internal_cmd_modifiers for each pipe cmd following.
+	*/
+	if t.pipe_cmds.len > 0 {
+		for i := 0; i < t.pipe_cmds.len; i++ {
+			t.pipe_cmds[i].internal_cmd_modifiers()
+		}
+	}
+
+	//utils.debug('Task: $t')
+
+	/*
+		actually run the process.
+	*/
+	mut index := -1
+	mut output := ''
+	index, output = t.run(t.cmd)
+
+	if index >= 0 && t.pipe_cmds.len > 0 {
+		for {
+			index, output = t.run(t.pipe_cmds[index])
+			if index < 0 {
+				utils.debug('breaking')
+				break
+			}
+		}
+	}
+
+	return true
+}
+
+fn (mut t Task) run(c Cmd_object) (int, string) {
+	mut output := ''
+	mut child := os.new_process('$c.fullcmd')
+	if c.args.len > 0 {
+		child.set_args(c.args[0..])
+	}
+	if c.next_pipe_index >= 0 || c.input != '' {
+			child.set_redirect_stdio()
+	}
+
+	if c.next_pipe_index < 0 {
+		child.run()
+	}
+
+	child.wait()
+	if c.input != '' {
+		child.stdin_write(c.input)
+	}
+	if c.intercept_stdio {
+		/*
+			set intercepted stdout for next
+			pipe cmd in chain.
+		*/
+		if c.next_pipe_index >= 0 {
+			output = child.stdout_slurp().trim_space()
+			t.pipe_cmds[c.next_pipe_index].input = output
+		}
+
+	}
+
+	return c.next_pipe_index, output
+}
+
+pub fn (mut t Task) handle_aliases() {
+	if alias_key_exists(t.cmd.cmd, t.cmd.aliases) {
+		alias_split := t.cmd.aliases[t.cmd.cmd].split(' ')
+		t.cmd.cmd = alias_split[0]
+		t.cmd.args << alias_split[1..]
+		utils.debug('found $t.cmd.cmd in $t.cmd.aliases')
+		utils.debug('will try to run $t.cmd.cmd with $t.cmd.args')
+	}
 }
 
 fn alias_key_exists(key string, aliases map[string]string) bool {
 	for i, _ in aliases {
 		if i == key {
+
 			return true
 		}
 	}
@@ -71,31 +211,32 @@ fn alias_key_exists(key string, aliases map[string]string) bool {
 	return false
 }
 
-fn find_exe(needle string, paths []string) ?(bool, string, string) {
+fn (mut c Cmd_object) find_exe() ? {
 	mut trimmed_needle := ''
-	for path in paths {
-		trimmed_needle = needle.replace(path, '').trim_left('/')
-		utils.debug('looking for $needle in $path')
+	for path in c.paths {
+		trimmed_needle = c.cmd.replace(path, '').trim_left('/')
+		utils.debug('looking for $c.cmd in $path')
 		if os.exists([path, trimmed_needle].join('/')) {
 			utils.debug('found $trimmed_needle in $path')
-			return true, [path, trimmed_needle].join('/'), trimmed_needle // will return on first hit 
+			c.fullcmd = [path, trimmed_needle].join('/')
+			c.path = path
+			c.cmd = trimmed_needle
+
+			return
 		}
 	}
 
-	return error('could not find and/or execute $trimmed_needle in $paths')
+	return error('could not find and/or execute $trimmed_needle in $c.paths')
 }
 
-fn built_in_cmd_modifiers(cmd string, args []string) []string {
-	mut return_args := []string{}
-	return_args << args
-	utils.debug('matching $cmd in built in modifiers')
-	match cmd {
+fn (mut c Cmd_object) internal_cmd_modifiers() {
+	utils.debug('matching $c.cmd in built in modifiers')
+	match c.cmd {
 		'ls' {
-			if !args.join(' ').contains('--color') {
-				return_args << '--color=auto'
+			if !c.args.join(' ').contains('--color') {
+				c.args << '--color=auto'
 			}
 		}
 		else {}
 	}
-	return return_args
 }

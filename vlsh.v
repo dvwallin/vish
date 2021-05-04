@@ -8,8 +8,6 @@ import cmds
 import exec
 import utils
 
-#include <signal.h>
-
 const (
 	config_file  = [os.home_dir(), '.vlshrc'].join('/')
 	version		 = '0.1.2'
@@ -26,7 +24,7 @@ fn read_cfg() ?Cfg {
 	config_file_data := os.read_lines(config_file) ?
 	cfg.extract_aliases(config_file_data)
 	cfg.extract_paths(config_file_data) or {
-		utils.fail(err.msg)
+		return err
 	}
 	utils.debug(cfg)
 
@@ -34,15 +32,18 @@ fn read_cfg() ?Cfg {
 }
 
 fn main() {
-	term.clear() //
+	term.clear()
 	mut r := Readline{}
 	r.enable_raw_mode()
 	for {
-		mut home_dir := term.colorize(term.bold, '$os.getwd() ')
-		home_dir = home_dir.replace('$os.home_dir()', '~')
+		mut current_dir := term.colorize(term.bold, '$os.getwd() ')
+		current_dir = current_dir.replace('$os.home_dir()', '~')
 		git_branch_output := utils.get_git_info()
-		println('\n$git_branch_output\n$home_dir')
-		cmd := r.read_line_utf8(term.red(':=')) ?
+		println('\n$git_branch_output\n$current_dir')
+		cmd := r.read_line_utf8(term.red(':=')) or {
+			utils.fail(err.msg)
+			return
+		}
 		main_loop(cmd.str().trim_space())
 	}
 	r.disable_raw_mode()
@@ -93,19 +94,16 @@ fn main_loop(input string) {
 			}
 		}
 		else {
-			alias_ok := exec.try_exec_alias(
-				cmd,
-				args,
-				cfg.aliases,
-				cfg.paths
-			) or {
-				utils.fail(err.msg)
-				return
-			}
-			if !alias_ok {
-				exec.try_exec_cmd(cmd, args, cfg.paths) or {
-					utils.fail(err.msg)
+			mut t := exec.Task{
+				cmd: exec.Cmd_object{
+					cmd: cmd,
+					args: args,
+					aliases: cfg.aliases,
+					paths: cfg.paths
 				}
+			}
+			t.prepare_task() or {
+				utils.fail(err.msg)
 			}
 		}
 	}
