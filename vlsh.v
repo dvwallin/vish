@@ -40,7 +40,7 @@ fn main() {
 		home_dir = home_dir.replace('$os.home_dir()', '~')
 		git_branch_output := utils.get_git_info()
 		println('\n$git_branch_output\n$home_dir')
-		cmd := r.read_line_utf8(term.red('->')) ?
+		cmd := r.read_line_utf8(term.red(':=')) ?
 		main_loop(cmd.str().trim_space())
 	}
 	r.disable_raw_mode()
