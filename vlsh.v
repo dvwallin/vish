@@ -39,8 +39,7 @@ fn main() {
 		mut home_dir := term.colorize(term.bold, '$os.getwd() ')
 		home_dir = home_dir.replace('$os.home_dir()', '~')
 		git_branch_output := utils.get_git_info()
-		println(git_branch_output)
-		println(home_dir)
+		println('\n$git_branch_output\n$home_dir')
 		cmd := r.read_line_utf8(term.red('->')) ?
 		main_loop(cmd.str().trim_space())
 	}
