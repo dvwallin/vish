@@ -1,6 +1,7 @@
 module main
 
 import os
+import net.http
 import term
 import readline { Readline }
 
@@ -92,6 +93,36 @@ fn main_loop(input string) {
 				utils.fail('could not read $config_file')
 				return
 			}
+		}
+		'share' {
+			println('args: $args')
+			if args.len != 1 {
+				utils.warn('usage: share <file>')
+				return
+			}
+			if !os.exists(args[0]) {
+				utils.fail('could not find ${args[0]}')
+				return
+			}
+			file_content := os.read_file(args[0]) or {
+				utils.fail('could not read ${args[0]}')
+				return
+			}
+
+			mut data := map[string]string
+			host := 'http://sprunge.us'
+			data['sprunge'] = file_content
+			resp := http.post_form(host, data) or {
+				utils.fail('could not post file: ${err.msg}')
+				return
+			}
+
+			if resp.status_code == 200{
+				utils.ok('file uploaded to: ${resp.text}')
+				return
+			}
+			utils.fail('status_code: ${resp.status_code}')
+			return
 		}
 		else {
 			mut t := exec.Task{

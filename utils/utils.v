@@ -7,8 +7,16 @@ const (
 	debug_mode = os.getenv('VLSHDEBUG')
 )
 
+pub fn ok(input string) {
+	println(term.ok_message('OKY| ${input}'))
+}
+
 pub fn fail(input string) {
 	println(term.fail_message('ERR| ${input}'))
+}
+
+pub fn warn(input string) {
+	println(term.warn_message('WRN| ${input}'))
 }
 
 pub fn debug<T>(input ...T) {
