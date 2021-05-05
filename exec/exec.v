@@ -141,12 +141,11 @@ fn (mut t Task) exec() ?bool {
 		actually run the process.
 	*/
 	mut index := -1
-	mut output := ''
-	index, output = t.run(t.cmd)
+	index = t.run(t.cmd)
 
 	if index >= 0 && t.pipe_cmds.len > 0 {
 		for {
-			index, output = t.run(t.pipe_cmds[index])
+			index = t.run(t.pipe_cmds[index])
 			if index < 0 {
 				utils.debug('breaking')
 				break
@@ -157,7 +156,7 @@ fn (mut t Task) exec() ?bool {
 	return true
 }
 
-fn (mut t Task) run(c Cmd_object) (int, string) {
+fn (mut t Task) run(c Cmd_object) (int) {
 	mut output := ''
 	mut child := os.new_process('$c.fullcmd')
 	if c.args.len > 0 {
@@ -187,7 +186,7 @@ fn (mut t Task) run(c Cmd_object) (int, string) {
 
 	}
 
-	return c.next_pipe_index, output
+	return c.next_pipe_index
 }
 
 pub fn (mut t Task) handle_aliases() {
