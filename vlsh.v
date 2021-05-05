@@ -110,18 +110,19 @@ fn main_loop(input string) {
 			}
 
 			mut data := map[string]string
-			host := 'http://sprunge.us'
-			data['sprunge'] = file_content
+			host := 'https://dpaste.com/api/'
+			data['content'] = file_content
 			resp := http.post_form(host, data) or {
 				utils.fail('could not post file: ${err.msg}')
 				return
 			}
 
-			if resp.status_code == 200{
+			if resp.status_code == 200 || resp.status_code == 201 {
 				utils.ok('file uploaded to: ${resp.text}')
 				return
 			}
 			utils.fail('status_code: ${resp.status_code}')
+			utils.debug(resp)
 			return
 		}
 		else {
