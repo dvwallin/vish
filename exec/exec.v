@@ -33,9 +33,6 @@ pub struct Cmd_object{
 	/*
 	paths is what we declare in the config
 	-file (~/.vlshrc) when we set path=''.
-	
-	@todo: if we find multiple path='' then
-	these should be combined.
 	*/
 	paths					[]string
 	/*

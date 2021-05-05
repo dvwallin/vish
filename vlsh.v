@@ -58,11 +58,12 @@ fn main_loop(input string) {
 		args << input_split[1..]
 	}
 
-	// reading in configuration file to handle paths and aliases
 	mut cfg := read_cfg() or {
 		utils.fail('could not read $config_file')
 		return
 	}
+
+	utils.debug(cfg)
 
 	match cmd {
 		'aliases' {
@@ -94,10 +95,11 @@ fn main_loop(input string) {
 			}
 		}
 		'share' {
-			cmds.share(args) or {
+			link := cmds.share(args) or {
 				utils.fail(err.msg)
 				return
 			}
+			println(link)
 		}
 		else {
 			mut t := exec.Task{

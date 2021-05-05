@@ -3,8 +3,6 @@ module cmds
 import os
 import net.http
 
-import utils
-
 pub fn help(version string) {
 	println('
 	vlsh - V Lang SHell v$version
@@ -33,10 +31,9 @@ pub fn cd(args []string) {
 	os.chdir(target)
 }
 
-pub fn share(args []string) ? {
+pub fn share(args []string) ?string {
 	if args.len != 1 {
-		utils.warn('usage: share <file>')
-		return
+		return error('usage: share <file>')
 	}
 	if !os.exists(args[0]) {
 		return error('could not find ${args[0]}')
@@ -53,8 +50,7 @@ pub fn share(args []string) ? {
 	}
 
 	if resp.status_code == 200 || resp.status_code == 201 {
-		utils.ok('file uploaded to: ${resp.text}')
-		return
+		return resp.text
 	}
 	return error('status_code: ${resp.status_code}')
 }
