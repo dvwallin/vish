@@ -16,6 +16,7 @@ exit			Exit the shell.
 help			Displays this message.
 ocp			Override existing destination for cp.
 version 		Prints the version of vlsh.
+share			Uploads a file to sprunge.us. ie. to share code.
 source			Reloads the config file.
 
 ')
