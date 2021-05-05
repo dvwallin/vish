@@ -1,7 +1,6 @@
 module main
 
 import os
-import net.http
 import term
 import readline { Readline }
 
@@ -95,35 +94,10 @@ fn main_loop(input string) {
 			}
 		}
 		'share' {
-			println('args: $args')
-			if args.len != 1 {
-				utils.warn('usage: share <file>')
+			cmds.share(args) or {
+				utils.fail(err.msg)
 				return
 			}
-			if !os.exists(args[0]) {
-				utils.fail('could not find ${args[0]}')
-				return
-			}
-			file_content := os.read_file(args[0]) or {
-				utils.fail('could not read ${args[0]}')
-				return
-			}
-
-			mut data := map[string]string
-			host := 'https://dpaste.com/api/'
-			data['content'] = file_content
-			resp := http.post_form(host, data) or {
-				utils.fail('could not post file: ${err.msg}')
-				return
-			}
-
-			if resp.status_code == 200 || resp.status_code == 201 {
-				utils.ok('file uploaded to: ${resp.text}')
-				return
-			}
-			utils.fail('status_code: ${resp.status_code}')
-			utils.debug(resp)
-			return
 		}
 		else {
 			mut t := exec.Task{
