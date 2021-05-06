@@ -12,6 +12,13 @@ import utils
 const version = '0.1.2'
 
 fn main() {
+
+	if !os.exists(cfg.config_file) {
+		cfg.create_default_config_file() or {
+			panic(err.msg)
+		}
+	}
+
 	term.clear()
 	mut r := Readline{}
 	r.enable_raw_mode()

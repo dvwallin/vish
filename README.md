@@ -33,9 +33,9 @@ This list is not in any specific order and is in no way complete.
 - [x] command history by using arrow keys
 - [ ] search command history with ctrl+r
 - [ ] plugin support
-- [x] theme support
+- [x] ~~theme support~~
 - [ ] pipes
-- [ ] create a default config file if none exists
+- [x] ~~create a default config file if none exists~~
 
 
 ## CONFIG

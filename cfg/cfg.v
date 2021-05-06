@@ -2,7 +2,7 @@ module cfg
 
 import os
 
-const config_file = [os.home_dir(), '.vlshrc'].join('/')
+pub const config_file = [os.home_dir(), '.vlshrc'].join('/')
 
 pub struct Cfg {
 	pub mut:
@@ -13,6 +13,13 @@ pub struct Cfg {
 
 pub fn get() ?Cfg {
 	mut cfg := Cfg{}
+
+	if !os.exists(config_file) {
+		create_default_config_file() or {
+			return err
+		}
+	}
+
 	config_file_data := os.read_lines(config_file) or {
 		return error('could not read from $config_file')
 	}
@@ -25,6 +32,36 @@ pub fn get() ?Cfg {
 	}
 
 	return cfg
+}
+
+pub fn create_default_config_file() ? {
+	default_config_file := [
+		'"paths',
+		'path=/usr/local/bin',
+		'path=/usr/bin;/bin',
+		'"aliases',
+		'alias gs=git status',
+		'alias gps=git push',
+		'alias gpl=git pull',
+		'alias gd=git diff',
+		'alias gc=git commit -sa',
+		'alias gl=git log',
+		'alias vim=nvim',
+		'"style (define in RGB colors)',
+		'"style_git_bg=44,59,71',
+		'"style_git_fg=251,255,234',
+		'"style_debug_bg=255,255,255',
+		'"style_debug_fb=251,255,234'
+	]
+	mut f := os.open_file(config_file, 'w') or {
+		return error('could not open $config_file')
+	}
+	for row in default_config_file {
+		f.writeln(row) or {
+			return error('could not write $row to $config_file')
+		}
+	}
+	f.close()
 }
 
 pub fn paths() ?[]string {
