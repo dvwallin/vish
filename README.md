@@ -33,8 +33,38 @@ This list is not in any specific order and is in no way complete.
 - [x] command history by using arrow keys
 - [ ] search command history with ctrl+r
 - [ ] plugin support
-- [ ] theme support
+- [x] theme support
 - [ ] pipes
+- [ ] create a default config file if none exists
+
+
+## CONFIG
+vlsh will look for the configuration file `$HOME/.vlshrc`.
+Here's an example -file:
+
+```
+"paths
+path=/usr/local/bin
+path=/usr/bin;/bin
+
+"aliases
+alias try=echo "hej"
+alias gs=git status
+alias gps=git push
+alias gpl=git pull
+alias gd=git diff
+alias gc=git commit -sa
+alias gl=git log
+alias vim=nvim
+alias vi=nvim
+alias v=nvim
+
+"style
+style_git_bg=44,59,71
+style_git_fg=251,255,234
+style_debug_bg=255,255,255
+style_debug_fb=251,255,234
+```
 
 
 ## CREDITS
