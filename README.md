@@ -56,7 +56,7 @@ alias gc=git commit -sa
 alias gl=git log
 alias vim=nvim
 
-"style
+"style (define in RGB colors)
 style_git_bg=44,59,71
 style_git_fg=251,255,234
 style_debug_bg=255,255,255
