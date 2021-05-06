@@ -179,6 +179,8 @@ fn (mut t Task) exec() ?bool {
 
 	/*
 	also find_exec for each pipe cmd following.
+
+	@todo: search for aliases before exec
 	*/
 	if t.pipe_cmds.len > 0 {
 		for i := 0; i < t.pipe_cmds.len; i++ {
@@ -208,8 +210,7 @@ fn (mut t Task) exec() ?bool {
 	next pipe cmd to run. an index of -1 will terminate
 	a pipe sequence.
 	*/
-	mut index := -1
-	index = t.run(t.cmd)
+	mut index := t.run(t.cmd)
 
 	if index >= 0 && t.pipe_cmds.len > 0 {
 		for {
@@ -228,27 +229,42 @@ fn (mut t Task) run(c Cmd_object) (int) {
 	mut output := ''
 	mut child := os.new_process('$c.fullcmd')
 	if c.args.len > 0 {
-		child.set_args(c.args[0..])
+		child.set_args(c.args)
 	}
 	if c.next_pipe_index >= 0 || c.input != '' {
 			child.set_redirect_stdio()
 	}
 
-	if c.next_pipe_index < 0 {
-		child.run()
+	child.run()
+
+	if c.input != '' {
+		child.stdin_write('$c.input')
 	}
 
-	child.wait()
-	if c.input != '' {
-		child.stdin_write(c.input)
+	for {
+		match child.status {
+			.exited, .aborted, .stopped {
+				utils.debug('exiting $c.cmd')
+				break
+			}
+			else {
+				utils.debug('waiting for $c.cmd')
+				child.wait() // @todo: process "hangs" here
+				println(child.stdio_fd)
+				child.set_redirect_stdio()
+				output = child.stdout_read()
+				println(output)
+			}
+		}
 	}
+
 	if c.intercept_stdio {
 		/*
 		set intercepted stdout for next
 		pipe cmd in chain.
 		*/
 		if c.next_pipe_index >= 0 {
-			output = child.stdout_slurp().trim_space()
+			output = child.stdout_read()
 			t.pipe_cmds[c.next_pipe_index].input = output
 		}
 

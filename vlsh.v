@@ -40,7 +40,7 @@ fn main() {
 		current_dir = current_dir.replace('$os.home_dir()', '~')
 		git_branch_output := utils.get_git_info()
 		println('\n$git_branch_output\n$current_dir')
-		cmd := r.read_line_utf8(term.red(':=')) or {
+		cmd := r.read_line_utf8(term.rgb(255, 112, 112, '- ')) or {
 			utils.fail(err.msg)
 			return
 		}

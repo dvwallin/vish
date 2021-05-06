@@ -18,12 +18,12 @@ pub fn fail(input string) {
 pub fn warn(input string) {
 	println(term.warn_message('WRN| ${input}'))
 }
-
+//251 255 234
 pub fn debug<T>(input ...T) {
 	if debug_mode == 'true' {
-		print(term.bg_rgb(252, 251, 239, 'debug::\t\t'))
+		print(term.bg_rgb(44, 59, 71, term.rgb(251, 255, 234, 'debug::\t\t')))
 		for i in input {
-			print(term.bg_rgb(252, 251, 239, i.str()))
+			print(term.bg_rgb(44, 59, 71, term.rgb(251, 255, 234, i.str())))
 		}
 		print('\n')
 	}
@@ -40,7 +40,13 @@ pub fn get_git_info() string {
 		if git_branch_id.exit_code == 0 {
 			git_branch_output = '$git_branch_output $git_branch_id.output.trim_space()'
 		}
-		git_branch_output = term.bg_rgb(232, 232, 232, git_branch_output)
+		git_branch_output = term.bg_rgb(
+			44, 59, 71,
+			term.rgb(
+				251, 255, 234,
+				git_branch_output
+			)
+		)
 
 		return git_branch_output
 }
