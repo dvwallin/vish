@@ -48,7 +48,6 @@ path=/usr/local/bin
 path=/usr/bin;/bin
 
 "aliases
-alias try=echo "hej"
 alias gs=git status
 alias gps=git push
 alias gpl=git pull
@@ -56,8 +55,6 @@ alias gd=git diff
 alias gc=git commit -sa
 alias gl=git log
 alias vim=nvim
-alias vi=nvim
-alias v=nvim
 
 "style
 style_git_bg=44,59,71
