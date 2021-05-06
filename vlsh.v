@@ -21,19 +21,17 @@ fn main() {
 
 	term.clear()
 	mut r := Readline{}
-	r.enable_raw_mode()
 	for {
 		mut current_dir := term.colorize(term.bold, '$os.getwd() ')
 		current_dir = current_dir.replace('$os.home_dir()', '~')
 		git_branch_output := utils.get_git_info()
 		println('\n$git_branch_output\n$current_dir')
-		cmd := r.read_line_utf8(term.rgb(255, 112, 112, '- ')) or {
+		cmd := r.read_line(term.rgb(255, 112, 112, '- ')) or {
 			utils.fail(err.msg)
 			return
 		}
 		main_loop(cmd.str().trim_space())
 	}
-	r.disable_raw_mode()
 }
 
 fn main_loop(input string) {
