@@ -5,20 +5,19 @@ import net.http
 
 pub fn help(version string) {
 	println('
-	vlsh - V Lang SHell v$version
-	---------------------------------------
-	Copyright (c) 2021 David Satime Wallin <david@dwall.in>
-	https://vlsh.ti-l.de
+vlsh - V Lang SHell v$version
+---------------------------------------
+Copyright (c) 2021 David Satime Wallin <david@dwall.in>
+https://vlsh.ti-l.de
 
 
-	aliases			Shows a list of all declared aliases.
-	cd			Change to provided directory.
-	exit			Exit the shell.
-	help			Displays this message.
-	ocp			Override existing destination for cp.
-	version 		Prints the version of vlsh.
-	share			Uploads a file to sprunge.us. ie. to share code.
-	source			Reloads the config file.
+aliases			Shows a list of all declared aliases.
+cd			Change to provided directory.
+exit			Exit the shell.
+help			Displays this message.
+ocp			Override existing destination for cp.
+version 		Prints the version of vlsh.
+share			Uploads a file to sprunge.us. ie. to share code.
 
 	')
 }

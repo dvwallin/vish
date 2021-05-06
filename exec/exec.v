@@ -2,6 +2,7 @@ module exec
 
 import os
 
+import cfg
 import utils
 
 pub struct Cmd_object{
@@ -31,15 +32,9 @@ pub struct Cmd_object{
 	*/
 	path					string
 	/*
-	paths is what we declare in the config
-	-file (~/.vlshrc) when we set path=''.
+	cfg is the config object in cfg.v
 	*/
-	paths					[]string
-	/*
-	aliases are all the alias= that we find
-	in the config -file (~/.vlshrc).
-	*/
-	aliases					map[string]string
+	cfg						cfg.Cfg
 	/*
 	input is only used when handling pipes.
 	this is a placeholder for output captured
@@ -145,8 +140,7 @@ fn (mut t Task) walk_pipes() {
 		obj := Cmd_object{
 			cmd: cmd,
 			args: args,
-			paths: t.cmd.paths,
-			aliases: t.cmd.aliases,
+			cfg: t.cmd.cfg,
 			intercept_stdio: intercept,
 			set_redirect_stdio: intercept,
 			next_pipe_index: next_index
@@ -239,7 +233,10 @@ fn (mut t Task) run(c Cmd_object) (int) {
 
 	if c.input != '' {
 		child.stdin_write('$c.input')
+		child.status = .exited
 	}
+	
+	child.wait() // @todo: process "hangs" here on pipes
 
 	for {
 		match child.status {
@@ -249,10 +246,6 @@ fn (mut t Task) run(c Cmd_object) (int) {
 			}
 			else {
 				utils.debug('waiting for $c.cmd')
-				child.wait() // @todo: process "hangs" here
-				println(child.stdio_fd)
-				child.set_redirect_stdio()
-				output = child.stdout_read()
 				println(output)
 			}
 		}
@@ -274,11 +267,11 @@ fn (mut t Task) run(c Cmd_object) (int) {
 }
 
 pub fn (mut t Task) handle_aliases() {
-	if alias_key_exists(t.cmd.cmd, t.cmd.aliases) {
-		alias_split := t.cmd.aliases[t.cmd.cmd].split(' ')
+	if alias_key_exists(t.cmd.cmd, t.cmd.cfg.aliases) {
+		alias_split := t.cmd.cfg.aliases[t.cmd.cmd].split(' ')
 		t.cmd.cmd = alias_split[0]
 		t.cmd.args << alias_split[1..]
-		utils.debug('found $t.cmd.cmd in $t.cmd.aliases')
+		utils.debug('found $t.cmd.cmd in $t.cmd.cfg.aliases')
 		utils.debug('will try to run $t.cmd.cmd with $t.cmd.args')
 	}
 }
@@ -296,7 +289,7 @@ fn alias_key_exists(key string, aliases map[string]string) bool {
 
 fn (mut c Cmd_object) find_exe() ? {
 	mut trimmed_needle := ''
-	for path in c.paths {
+	for path in c.cfg.paths {
 		trimmed_needle = c.cmd.replace(path, '').trim_left('/')
 		utils.debug('looking for $c.cmd in $path')
 		if os.exists([path, trimmed_needle].join('/')) {
@@ -309,7 +302,9 @@ fn (mut c Cmd_object) find_exe() ? {
 		}
 	}
 
-	return error('could not find and/or execute $trimmed_needle in $c.paths')
+	return error(
+		'could not find and/or execute $trimmed_needle in $c.cfg.paths'
+	)
 }
 
 /*
