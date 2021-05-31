@@ -15,21 +15,16 @@ pub fn get() ?Cfg {
 	mut cfg := Cfg{}
 
 	if !os.exists(config_file) {
-		create_default_config_file() or {
-			return err
-		}
+		create_default_config_file() or { return err }
 	}
 
 	config_file_data := os.read_lines(config_file) or {
+
 		return error('could not read from $config_file')
 	}
 	cfg.extract_aliases(config_file_data)
-	cfg.extract_paths(config_file_data) or {
-		return err
-	}
-	cfg.extract_style(config_file_data) or {
-		return err
-	}
+	cfg.extract_paths(config_file_data) or { return err }
+	cfg.extract_style(config_file_data) or { return err }
 
 	return cfg
 }
@@ -54,10 +49,12 @@ pub fn create_default_config_file() ? {
 		'"style_debug_fb=251,255,234'
 	]
 	mut f := os.open_file(config_file, 'w') or {
+
 		return error('could not open $config_file')
 	}
 	for row in default_config_file {
 		f.writeln(row) or {
+
 			return error('could not write $row to $config_file')
 		}
 	}
@@ -66,22 +63,28 @@ pub fn create_default_config_file() ? {
 
 pub fn paths() ?[]string {
 	cfg := get() or {
+
 		return error('could not get paths from $config_file')
 	}
+
 	return cfg.paths
 }
 
 pub fn aliases() ?map[string]string {
 	cfg := get() or {
+
 		return error('could not get aliases from $config_file')
 	}
+
 	return cfg.aliases
 }
 
 pub fn style() ?map[string][]int {
 	cfg := get() or {
+
 		return error('could not get style from $config_file')
 	}
+
 	return cfg.style
 }
 
@@ -93,10 +96,12 @@ fn (mut cfg Cfg) extract_style(cfd []string) ? {
 		if ent[0..5].trim_space() == 'style' {
 			split_style := ent.trim_space().split('=')
 			if split_style.len < 2 {
+
 				return error('style wasn\'t formatted correctly: $ent')
 			}
 			rgb_split := split_style[1].trim_space().split(',')
 			if rgb_split.len != 3 {
+
 				return error('not correct rgb definition: $ent')
 			}
 
@@ -147,6 +152,7 @@ fn (mut cfg Cfg) extract_paths(cfd []string) ? {
 					cfg.paths << path
 				} else {
 					real_path := os.real_path(path)
+
 					return error('could not find ${real_path}')
 				}
 			}
