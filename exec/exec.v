@@ -8,7 +8,7 @@ import utils
 pub struct Cmd_object{
 	mut:
 	/*
-	cmd is the first given argument which
+	cmd is the first ,iven argument which
 	we will consider to be an application
 	or alias to be executed.
 	*/
@@ -19,7 +19,7 @@ pub struct Cmd_object{
 	first argument passed in (cmd).
 	*/
 	fullcmd					string
-	/* 
+	/*
 	args will be all of the following args
 	sent [1..]. This will break if we find
 	a pipe sign |.
@@ -42,7 +42,7 @@ pub struct Cmd_object{
 	*/
 	input					string
 	/*
-	set_redirect_stdio is only used when 
+	set_redirect_stdio is only used when
 	handling pipes. it's used in combination
 	with intercept_stdio to send output
 	along to next command as input.
@@ -51,7 +51,7 @@ pub struct Cmd_object{
 	/*
 	intercept_stdio is only used when handling
 	pipes. it's to know if we should slurp the
-	output from a command and set it as the 
+	output from a command and set it as the
 	input of the next command in the pipe chain.
 	*/
 	intercept_stdio			bool
@@ -66,7 +66,7 @@ pub struct Cmd_object{
 pub struct Task {
 	mut:
 	/*
-	cmd is simply a command object
+	cmd is a command object
 	*/
 	cmd			Cmd_object
 	/*
@@ -111,7 +111,7 @@ fn norm_pipe(i string) string {
 	mut r := []string{}
 	m := i.split('|')
 	for s in m {
-		mut p := s
+		mut p := s // do trim_space() on s without it being mut?
 		p = p.trim_space()
 		if p != '' {
 			r << p
@@ -222,21 +222,17 @@ fn (mut t Task) exec() ?bool {
 fn (mut t Task) run(c Cmd_object) (int) {
 	mut output := ''
 	mut child := os.new_process('$c.fullcmd')
+
 	if c.args.len > 0 {
 		child.set_args(c.args)
 	}
-	if c.next_pipe_index >= 0 || c.input != '' {
-			child.set_redirect_stdio()
-	}
 
-	child.run()
+	child.wait()
 
 	if c.input != '' {
+		child.set_redirect_stdio()
 		child.stdin_write('$c.input')
-		child.status = .exited
 	}
-	
-	child.wait() // @todo: process "hangs" here on pipes
 
 	for {
 		match child.status {
@@ -257,6 +253,7 @@ fn (mut t Task) run(c Cmd_object) (int) {
 		pipe cmd in chain.
 		*/
 		if c.next_pipe_index >= 0 {
+			child.set_redirect_stdio()
 			output = child.stdout_read()
 			t.pipe_cmds[c.next_pipe_index].input = output
 		}
@@ -266,7 +263,7 @@ fn (mut t Task) run(c Cmd_object) (int) {
 	return c.next_pipe_index
 }
 
-pub fn (mut t Task) handle_aliases() {
+fn (mut t Task) handle_aliases() {
 	if alias_key_exists(t.cmd.cmd, t.cmd.cfg.aliases) {
 		alias_split := t.cmd.cfg.aliases[t.cmd.cmd].split(' ')
 		t.cmd.cmd = alias_split[0]
@@ -303,7 +300,8 @@ fn (mut c Cmd_object) find_exe() ? {
 	}
 
 	return error(
-		'could not find and/or execute $trimmed_needle in $c.cfg.paths'
+		'$trimmed_needle not found in defined aliases or in \$PATH
+        \$PATH: $c.cfg.paths'
 	)
 }
 
